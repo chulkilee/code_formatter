@@ -126,7 +126,9 @@ defmodule CodeFormatterTest do
 
     test "with escapes" do
       assert_same ~S[:"f\a\b\ro"]
-      assert_same ~S[:"double \" quote"]
+      assert_format ~S[:'f\a\b\ro'], ~S[:"f\a\b\ro"]
+      assert_format ~S[:'single \' quote'], ~S[:"single ' quote"]
+      assert_format ~S[:"double \" quote"], ~S[:"double \" quote"]
     end
 
     test "with unicode" do
@@ -140,6 +142,10 @@ defmodule CodeFormatterTest do
     test "removes quotes when they are not necessary" do
       assert_format ~S[:"foo"], ~S[:foo]
       assert_format ~S[:"++"], ~S[:++]
+    end
+
+    test "uses double quotes even when single quotes are used" do
+      assert_format ~S[:'foo bar'], ~S[:"foo bar"]
     end
 
     test "with interpolation" do
