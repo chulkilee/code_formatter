@@ -421,6 +421,42 @@ defmodule CodeFormatterTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "with heredoc syntax" do
+      assert_same ~S"""
+      ~s'''
+      one\a
+      #{:two}\r
+      three\0
+      '''
+      """
+
+      assert_same ~S'''
+      ~s"""
+      one\a
+      #{:two}\r
+      three\0
+      """
+      '''
+    end
+
+    test "with heredoc syntax and interpolation on line limit" do
+      bad = ~S"""
+      ~s'''
+      one #{"two two"} three
+      '''
+      """
+
+      good = ~S"""
+      ~s'''
+      one #{
+        "two two"
+      } three
+      '''
+      """
+
+      assert_format bad, good, @short_length
+    end
   end
 
   describe "unary operators" do

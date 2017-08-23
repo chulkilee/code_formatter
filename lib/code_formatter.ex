@@ -228,10 +228,16 @@ defmodule CodeFormatter do
     case {Atom.to_string(fun), args} do
       {<<"sigil_", name>>, [{:<<>>, _, entries}, modifiers]} ->
         opening_terminator = List.to_string(Keyword.fetch!(meta, :terminator))
-        closing_terminator = closing_sigil_terminator(opening_terminator)
         acc = <<?~, name, opening_terminator::binary>>
-        {doc, state} = interpolation_to_algebra(entries, closing_terminator, state, acc, closing_terminator)
-        {concat(doc, List.to_string(modifiers)), state}
+
+        if opening_terminator in [@double_heredoc, @single_heredoc] do
+          {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), opening_terminator)
+          {line(acc, doc), state}
+        else
+          closing_terminator = closing_sigil_terminator(opening_terminator)
+          {doc, state} = interpolation_to_algebra(entries, closing_terminator, state, acc, closing_terminator)
+          {concat(doc, List.to_string(modifiers)), state}
+        end
       _ ->
         :error
     end
