@@ -55,6 +55,7 @@ defmodule CodeFormatterTest do
 
     test "with escapes" do
       assert_same ~S["f\a\b\ro"]
+      assert_same ~S["double \" quote"]
     end
 
     test "converts literal new lines into escaped new lines" do
@@ -77,6 +78,46 @@ defmodule CodeFormatterTest do
       "one #{
         "two"
       } three"
+      """
+
+      assert_format bad, good, @short_length
+    end
+  end
+
+  describe "atom literals" do
+    test "with interpolation" do
+      assert_same ~S[:"one #{2} three"]
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      :"one #{"two"} three"
+      """
+
+      good = ~S"""
+      :"one #{
+        "two"
+      } three"
+      """
+
+      assert_format bad, good, @short_length
+    end
+  end
+
+  describe "charlist literals" do
+    test "with interpolation" do
+      assert_same ~S['one #{2} three']
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      'one #{"two"} three'
+      """
+
+      good = ~S"""
+      'one #{
+        "two"
+      } three'
       """
 
       assert_format bad, good, @short_length

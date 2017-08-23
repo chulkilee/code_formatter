@@ -33,14 +33,37 @@ defmodule CodeFormatter do
     end
   end
 
+  defp quoted_to_algebra({{:., _, [String, :to_charlist]}, _, [{:<<>>, _, entries}]} = quoted,
+                         state) do
+    if interpolated?(entries) do
+      interpolation_to_algebra(entries, ?', state, "'")
+    else
+      remote_to_algebra(quoted, state)
+    end
+  end
+
+  defp quoted_to_algebra({{:., _, [:erlang, :binary_to_atom]}, _,
+                          [{:<<>>, _, entries}, :utf8]} = quoted,
+                         state) do
+    if interpolated?(entries) do
+      interpolation_to_algebra(entries, ?", state, ":\"")
+    else
+      remote_to_algebra(quoted, state)
+    end
+  end
+
   defp quoted_to_algebra(quoted, state) do
     {literal_to_algebra(quoted), state}
   end
 
+  ## Remote calls
+
+  defp remote_to_algebra(_quoted, _state) do
+    raise "not yet implemented"
+  end
+
   ## Interpolation
 
-  # TODO: Test comments before an interpolated string/atom/charlist
-  # because none of those currently include line info in meta.
   defp interpolated?(entries) do
     Enum.all?(entries, fn
       {:::, _, [{{:., _, [Kernel, :to_string]}, _, [_]}, {:binary, _, _}]} -> true
