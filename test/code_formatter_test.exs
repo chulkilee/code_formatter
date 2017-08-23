@@ -71,7 +71,7 @@ defmodule CodeFormatterTest do
     end
   end
 
-  describe "string literals (double-quoted)" do
+  describe "string literals" do
     test "without escapes" do
       assert_same ~S["foo"]
     end
@@ -92,6 +92,10 @@ defmodule CodeFormatterTest do
       assert_same ~S["one #{2} three"]
     end
 
+    test "with escapes and interpolation" do
+      assert_same ~S["one\n\"#{2}\"\nthree"]
+    end
+
     test "with interpolation on line limit" do
       bad = ~S"""
       "one #{"two"} three"
@@ -104,6 +108,14 @@ defmodule CodeFormatterTest do
       """
 
       assert_format bad, good, @short_length
+    end
+
+    test "literal new lines don't count towards line limit" do
+      assert_same ~S"""
+      "one
+      #{"two"}
+      three"
+      """, @short_length
     end
   end
 
@@ -170,6 +182,10 @@ defmodule CodeFormatterTest do
       assert_same ~S['one #{2} three']
     end
 
+    test "with escape and interpolation" do
+      assert_same ~S['one\n\'#{2}\'\nthree']
+    end
+
     test "with interpolation on line limit" do
       bad = ~S"""
       'one #{"two"} three'
@@ -182,6 +198,86 @@ defmodule CodeFormatterTest do
       """
 
       assert_format bad, good, @short_length
+    end
+
+    test "literal new lines don't count towards line limit" do
+      assert_same ~S"""
+      'one
+      #{"two"}
+      three'
+      """, @short_length
+    end
+  end
+
+  describe "string heredocs" do
+    test "without escapes" do
+      assert_same to_string(~S'''
+      """
+      hello
+      """
+      ''')
+    end
+
+    test "with escapes" do
+      assert_same to_string(~S'''
+      """
+      f\a\b\ro
+      """
+      ''')
+
+      assert_same to_string(~S'''
+      """
+      multiple "\"" quotes
+      """
+      ''')
+    end
+
+    test "with interpolation" do
+      assert_same to_string(~S'''
+      """
+      one
+      #{2}
+      three
+      """
+      ''')
+
+      assert_same to_string(~S'''
+      """
+      one
+      "
+      #{2}
+      "
+      three
+      """
+      ''')
+    end
+
+    test "with interpolation on line limit" do
+      bad = to_string(~S'''
+      """
+      one #{"two two"} three
+      """
+      ''')
+
+      good = to_string(~S'''
+      """
+      one #{
+        "two two"
+      } three
+      """
+      ''')
+
+      assert_format bad, good, @short_length
+    end
+
+    test "literal new lines don't count towards line limit" do
+      assert_same to_string(~S'''
+      """
+      one
+      #{"two two"}
+      three
+      """
+      '''), @short_length
     end
   end
 end

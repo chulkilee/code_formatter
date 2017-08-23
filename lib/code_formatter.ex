@@ -2,6 +2,9 @@ defmodule CodeFormatter do
   import Inspect.Algebra, except: [format: 2], warn: false
 
   @line_length 98
+  @double_quote "\""
+  @double_heredoc "\"\"\""
+  @single_quote "'"
 
   @doc """
   Formats the given code `string`.
@@ -25,18 +28,22 @@ defmodule CodeFormatter do
     |> elem(0)
   end
 
-  defp quoted_to_algebra({:<<>>, _, entries}, state) do
-    if interpolated?(entries) do
-      interpolation_to_algebra(entries, ?", state, "\"")
-    else
-      raise "not yet implemented"
+  defp quoted_to_algebra({:<<>>, meta, entries}, state) do
+    cond do
+      not interpolated?(entries) ->
+        raise "not yet implemented"
+      meta[:format] == :bin_heredoc ->
+        {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), @double_heredoc)
+        {line(@double_heredoc, doc), state}
+      true ->
+        interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
   end
 
   defp quoted_to_algebra({{:., _, [String, :to_charlist]}, _, [{:<<>>, _, entries}]} = quoted,
                          state) do
     if interpolated?(entries) do
-      interpolation_to_algebra(entries, ?', state, "'")
+      interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     else
       remote_to_algebra(quoted, state)
     end
@@ -46,7 +53,7 @@ defmodule CodeFormatter do
                           [{:<<>>, _, entries}, :utf8]} = quoted,
                          state) do
     if interpolated?(entries) do
-      interpolation_to_algebra(entries, ?", state, ":\"")
+      interpolation_to_algebra(entries, @double_quote, state, ":\"", @double_quote)
     else
       remote_to_algebra(quoted, state)
     end
@@ -54,15 +61,21 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, _, [list]}, state) when is_list(list) do
     if Enum.all?(list, & &1 in 0x0..0xFFFFFF) do
-      string = list |> List.to_string |> escape(?')
-      {"'" <> string <> "'", state}
+      string = list |> List.to_string |> escape(@single_quote)
+      {@single_quote |> concat(string) |> concat(@single_quote), state}
     else
       raise "not yet implemented"
     end
   end
 
-  defp quoted_to_algebra({:__block__, _, [string]}, state) when is_binary(string) do
-    {"\"" <> escape(string, ?") <> "\"", state}
+  defp quoted_to_algebra({:__block__, meta, [string]}, state) when is_binary(string) do
+    if meta[:format] == :bin_heredoc do
+      string = escape(string, :none)
+      {@double_heredoc |> line(string) |> concat(@double_heredoc), state}
+    else
+      string = escape(string, @double_quote)
+      {@double_quote |> concat(string) |> concat(@double_quote), state}
+    end
   end
 
   defp quoted_to_algebra({:__block__, _, [atom]}, state) when is_atom(atom) do
@@ -93,28 +106,23 @@ defmodule CodeFormatter do
     end)
   end
 
-  defp interpolation_to_algebra([entry | entries], escape, state, acc) when is_binary(entry) do
-    {escaped, _} = Code.Identifier.escape(entry, escape)
-    doc = IO.iodata_to_binary(escaped)
-    interpolation_to_algebra(entries, escape, state, concat(acc, doc))
+  defp interpolation_to_algebra([entry | entries], escape, state, acc, last) when is_binary(entry) do
+    acc = concat(acc, escape(entry, escape))
+    interpolation_to_algebra(entries, escape, state, acc, last)
   end
 
-  defp interpolation_to_algebra([entry | entries], escape, state, acc) do
+  defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
     {doc, state} = quoted_to_algebra(quoted, state)
     doc = glue(nest(glue("\#{", "", doc), 2), "", "}")
-    interpolation_to_algebra(entries, escape, state, concat(acc, doc))
+    interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
 
-  defp interpolation_to_algebra([], escape, state, acc) do
-    {group(concat(acc, <<escape>>), :strict), state}
+  defp interpolation_to_algebra([], _escape, state, acc, last) do
+    {group(concat(acc, last), :strict), state}
   end
 
   ## Literals
-
-  defp escape(string, codepoint) do
-    String.replace(string, <<codepoint::utf8>>, <<?\\, codepoint::utf8>>)
-  end
 
   defp atom_to_algebra(atom) do
     string = Atom.to_string(atom)
@@ -123,7 +131,7 @@ defmodule CodeFormatter do
       type when type in [:callable, :not_callable] ->
         IO.iodata_to_binary [?:, string]
       _ ->
-        IO.iodata_to_binary [?:, ?", escape(string, ?"), ?"]
+        IO.iodata_to_binary [?:, ?", escape(string, "\""), ?"]
     end
   end
 
@@ -162,5 +170,22 @@ defmodule CodeFormatter do
     else
       digits
     end
+  end
+
+  defp escape(string, :none) do
+    insert_line_breaks(string)
+  end
+
+  defp escape(string, escape) when is_binary(escape) do
+    string
+    |> String.replace(escape, "\\" <> escape)
+    |> insert_line_breaks()
+  end
+
+  defp insert_line_breaks(string) do
+    string
+    |> String.split("\n")
+    |> Enum.reverse()
+    |> Enum.reduce(&line/2)
   end
 end
