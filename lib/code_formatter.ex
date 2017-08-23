@@ -72,6 +72,10 @@ defmodule CodeFormatter do
     {integer_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
+  defp quoted_to_algebra({:__block__, meta, [float]}, state) when is_float(float) do
+    {float_to_algebra(Keyword.fetch!(meta, :original)), state}
+  end
+
   ## Remote calls
 
   defp remote_to_algebra(_quoted, _state) do
@@ -138,20 +142,31 @@ defmodule CodeFormatter do
       [?? | _rest] = char ->
         List.to_string(char)
       decimal ->
-        if length(decimal) >= 6 do
-          List.to_string(insert_underscores(decimal))
-        else
-          List.to_string(decimal)
-        end
+        List.to_string(insert_underscores(decimal))
     end
   end
 
+  defp float_to_algebra(text) do
+    [int_part, decimal_part] = :string.split(text, '.')
+
+    decimal_part =
+      decimal_part
+      |> List.to_string()
+      |> String.downcase()
+
+    List.to_string(insert_underscores(int_part)) <> "." <> decimal_part
+  end
+
   defp insert_underscores(digits) do
-    digits
-    |> Enum.reverse()
-    |> Enum.chunk_every(3)
-    |> Enum.intersperse('_')
-    |> List.flatten()
-    |> Enum.reverse()
+    if length(digits) >= 6 do
+      digits
+      |> Enum.reverse()
+      |> Enum.chunk_every(3)
+      |> Enum.intersperse('_')
+      |> List.flatten()
+      |> Enum.reverse()
+    else
+      digits
+    end
   end
 end

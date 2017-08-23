@@ -48,6 +48,29 @@ defmodule CodeFormatterTest do
     end
   end
 
+  describe "float literals" do
+    test "with normal notation" do
+      assert_same "0.0"
+      assert_same "1.0"
+      assert_same "123.456"
+      assert_same "0.0000001"
+      assert_same "001.100"
+      assert_format "0_10000_0.000_000", "0_100_000.000000"
+    end
+
+    test "with scientific notation" do
+      assert_same "1.0e1"
+      assert_same "1.0e-1"
+      assert_same "1.0e01"
+      assert_same "1.0e-01"
+      assert_same "001.100e-010"
+      assert_format "0_1_00_0_000.100e-010", "01_000_000.100e-010"
+
+      assert_format "1.0E01", "1.0e01"
+      assert_format "1.0E-01", "1.0e-01"
+    end
+  end
+
   describe "string literals (double-quoted)" do
     test "without escapes" do
       assert_same ~S["foo"]
