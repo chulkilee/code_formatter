@@ -358,4 +358,40 @@ defmodule CodeFormatterTest do
       """, @short_length
     end
   end
+
+  describe "sigils" do
+    test "without interpolation" do
+      assert_same ~S[~s(foo)]
+      assert_same ~S[~s{foo bar}]
+      assert_same ~S[~r/Bar Baz/]
+      assert_same ~S[~w<>]
+      assert_same ~S[~W()]
+    end
+
+    test "with escapes" do
+      assert_same ~S[~s(foo \) bar)]
+      assert_same ~S[~s(f\a\b\ro)]
+    end
+
+    test "with interpolation" do
+      assert_same ~S[~s(one #{2} three)]
+    end
+
+    test "with modifiers" do
+      assert_same ~S[~w(one two three)a]
+      assert_same ~S[~z(one two three)foo]
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      ~s(one #{"two"} three)
+      """
+      good = ~S"""
+      ~s(one #{
+        "two"
+      } three)
+      """
+      assert_format bad, good, @short_length
+    end
+  end
 end

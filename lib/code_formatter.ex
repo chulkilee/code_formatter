@@ -99,9 +99,26 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
+  defp quoted_to_algebra({fun, meta, args} = quoted, state)
+       when is_atom(fun) and is_list(args) do
+    case {Atom.to_string(fun), args} do
+      {<<"sigil_", name>>, [{:<<>>, _, entries}, modifiers]} ->
+        opening_terminator = List.to_string(Keyword.fetch!(meta, :terminator))
+        sigil_to_algebra(name, opening_terminator, entries, modifiers, state)
+      _other ->
+        local_to_algebra(quoted, state)
+    end
+  end
+
   ## Remote calls
 
   defp remote_to_algebra(_quoted, _state) do
+    raise "not yet implemented"
+  end
+
+  ## Local calls
+
+  defp local_to_algebra(_quoted, _state) do
     raise "not yet implemented"
   end
 
@@ -130,6 +147,21 @@ defmodule CodeFormatter do
   defp interpolation_to_algebra([], _escape, state, acc, last) do
     {group(concat(acc, last), :strict), state}
   end
+
+  ## Sigils
+
+  defp sigil_to_algebra(name, opening_terminator, entries, modifiers, state) do
+    closing_terminator = closing_sigil_terminator(opening_terminator)
+    acc = <<?~, name, opening_terminator::binary>>
+    {doc, state} = interpolation_to_algebra(entries, closing_terminator, state, acc, closing_terminator)
+    {concat(doc, List.to_string(modifiers)), state}
+  end
+
+  defp closing_sigil_terminator("("), do: ")"
+  defp closing_sigil_terminator("["), do: "]"
+  defp closing_sigil_terminator("{"), do: "}"
+  defp closing_sigil_terminator("<"), do: ">"
+  defp closing_sigil_terminator(other) when other in ["\"", "'", "|", "/"], do: other
 
   ## Literals
 
