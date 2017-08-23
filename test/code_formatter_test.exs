@@ -7,42 +7,32 @@ defmodule CodeFormatterTest do
     test "in decimal base" do
       assert_same "0"
       assert_same "100"
-    end
-
-    @tag :skip
-    test "in decimal base with leading zeros" do
       assert_same "007"
+      assert_same "10000"
+      assert_format "100000", "100_000"
+      assert_format "1000000", "1_000_000"
     end
 
     test "in binary base" do
       assert_same "0b0"
       assert_same "0b1"
       assert_same "0b101"
-    end
-
-    @tag :skip
-    test "in binary base with leading zeros" do
       assert_same "0b01"
+      assert_format "0b111_111", "0b111111"
     end
 
     test "in octal base" do
       assert_same "0o77"
       assert_same "0o0"
-    end
-
-    @tag :skip
-    test "in octal base with leading zeros" do
       assert_same "0o01"
+      assert_format "0o777_777", "0o777777"
     end
 
     test "in hex base" do
       assert_same "0x1"
       assert_format "0xabcdef", "0xABCDEF"
-    end
-
-    @tag :skip
-    test "in hex base with leading zeros" do
       assert_same "0x01"
+      assert_format "0xFFF_FFF", "0xFFFFFF"
     end
 
     test "as chars" do
@@ -52,6 +42,7 @@ defmodule CodeFormatterTest do
       assert_same "??"
       assert_same "?\\\\"
       assert_same "?\\s"
+      assert_same "?🎾"
     end
   end
 

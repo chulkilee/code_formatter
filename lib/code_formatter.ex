@@ -1,5 +1,5 @@
 defmodule CodeFormatter do
-  import Inspect.Algebra, except: [format: 2]
+  import Inspect.Algebra, except: [format: 2], warn: false
 
   @line_length 98
 
@@ -35,15 +35,28 @@ defmodule CodeFormatter do
   end
 
   defp literal_to_algebra({:__block__, meta, [int]}) when is_integer(int) do
-    case Keyword.fetch!(meta, :format) do
-      base when base in [:decimal, :binary, :octal, :hex] ->
-        inspect(int, base: base)
-      :char when int == ?\s ->
-        "?\\s"
-      :char when int == ?\\ ->
-        "?\\\\"
-      :char ->
-        <<??, int::utf8>>
+    case Keyword.fetch!(meta, :original) do
+      [?0, ?x | rest] ->
+        "0x" <> String.upcase(List.to_string(rest))
+      [?0, base | _rest] = digits when base in [?b, ?o] ->
+        List.to_string(digits)
+      [?? | _rest] = char ->
+        List.to_string(char)
+      decimal ->
+        if length(decimal) >= 6 do
+          List.to_string(insert_underscores(decimal))
+        else
+          List.to_string(decimal)
+        end
     end
+  end
+
+  defp insert_underscores(digits) do
+    digits
+    |> Enum.reverse()
+    |> Enum.chunk_every(3)
+    |> Enum.intersperse('_')
+    |> List.flatten()
+    |> Enum.reverse()
   end
 end
