@@ -64,6 +64,10 @@ defmodule CodeFormatter do
     {string_to_algebra(string), state}
   end
 
+  defp quoted_to_algebra({:__block__, _, [atom]}, state) when is_atom(atom) do
+    {atom_to_algebra(atom), state}
+  end
+
   defp quoted_to_algebra({:__block__, meta, [integer]}, state) when is_integer(integer) do
     {integer_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
@@ -102,6 +106,18 @@ defmodule CodeFormatter do
   end
 
   ## Literals
+
+  defp atom_to_algebra(atom) do
+    binary = Atom.to_string(atom)
+
+    case Code.Identifier.classify(atom) do
+      type when type in [:callable, :not_callable] ->
+        IO.iodata_to_binary [?:, binary]
+      _ ->
+        {escaped, _} = Code.Identifier.escape(binary, ?")
+        IO.iodata_to_binary [?:, ?", escaped, ?"]
+    end
+  end
 
   defp charlist_to_algebra(charlist) do
     {escaped, _} = Code.Identifier.escape(List.to_string(charlist), ?')

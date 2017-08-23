@@ -85,6 +85,24 @@ defmodule CodeFormatterTest do
   end
 
   describe "atom literals" do
+    test "without escapes" do
+      assert_same ~S[:foo]
+    end
+
+    test "with escapes" do
+      assert_same ~S[:"f\a\b\ro"]
+      assert_same ~S[:"double \" quote"]
+    end
+
+    test "does not reformat aliases" do
+      assert_same ~S[:"Elixir.String"]
+    end
+
+    test "removes quotes when they are not necessary" do
+      assert_format ~S[:"foo"], ~S[:foo]
+      assert_format ~S[:"++"], ~S[:++]
+    end
+
     test "with interpolation" do
       assert_same ~S[:"one #{2} three"]
     end
@@ -112,6 +130,13 @@ defmodule CodeFormatterTest do
     test "with escapes" do
       assert_same ~S['f\a\b\ro']
       assert_same ~S['single \' quote']
+    end
+
+    test "converts literal new lines into escaped new lines" do
+      assert_format """
+      'fo
+      o'
+      """, ~S['fo\no']
     end
 
     test "with interpolation" do
