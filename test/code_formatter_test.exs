@@ -87,11 +87,19 @@ defmodule CodeFormatterTest do
       assert_same "'Foo'.Bar.Baz" # Syntatically valid, semantically invalid
     end
 
-    # TODO: Implement this once we have binary ops
-    # test "wraps the head in parens if it is a binary operation"
+    test "wraps the head in parens if it has an operator" do
+      assert_format "+(Foo . Bar . Baz)", "+Foo.Bar.Baz"
+      assert_format "(+Foo) . Bar . Baz", "(+Foo).Bar.Baz"
+    end
   end
 
   describe "atom literals" do
+    test "true, false, nil" do
+      assert_same "nil"
+      assert_same "true"
+      assert_same "false"
+    end
+
     test "without escapes" do
       assert_same ~S[:foo]
     end
@@ -410,6 +418,44 @@ defmodule CodeFormatterTest do
       ~s(one #{
         "two"
       } three)
+      """
+      assert_format bad, good, @short_length
+    end
+  end
+
+  describe "unary operators" do
+    test "formats symbol operators without spaces" do
+      assert_format "+ 1", "+1"
+      assert_format "- 1", "-1"
+      assert_format "! 1", "!1"
+      assert_format "^ 1", "^1"
+      assert_format "~~~ 1", "~~~1"
+    end
+
+    test "formats word operators with spaces" do
+      assert_same "not 1"
+      assert_same "not true"
+    end
+
+    test "wraps operand if it is a unary or binary operator" do
+      assert_format "!+1", "!(+1)"
+      assert_format "+ +1", "+(+1)"
+      assert_format "not +1", "not(+1)"
+      assert_format "not !1", "not(!1)"
+      assert_format "!not 1", "!(not 1)"
+    end
+
+    test "does not wrap operand if it is a nestable operator" do
+      assert_format "! ! var", "!!var"
+      assert_same "not not var"
+    end
+
+    test "splits operand parens on line limit" do
+      bad = "not not(+123_456_789)"
+      good = """
+      not not(
+        +123_456_789
+      )
       """
       assert_format bad, good, @short_length
     end

@@ -29,10 +29,7 @@ defmodule CodeFormatter do
   end
 
   defp state do
-    %{
-      # How many levels we handle binary ops without parens.
-      binary_ops_level: 2
-    }
+    %{}
   end
 
   defp quoted_to_algebra({:<<>>, meta, entries}, state) do
@@ -105,14 +102,20 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
+  defp quoted_to_algebra({:__block__, _meta, [arg]}, state) do
+    quoted_to_algebra(arg, state)
+  end
+
   defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, state) do
-    {head, state} =
+    {doc, state} =
       if is_atom(head) do
         {Atom.to_string(head), state}
       else
-        binary_op_parens_quoted_to_algebra(head, state)
+        quoted_to_algebra(head, state)
       end
-    {Enum.reduce(tail, head, &concat(&2, "." <> Atom.to_string(&1))), state}
+
+    doc = wrap_in_parens_if_op(head, doc)
+    {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
   end
 
   defp quoted_to_algebra({var, _meta, context}, state) when is_atom(context) do
@@ -121,15 +124,71 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({fun, meta, args}, state) when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
+         :error <- maybe_unary_op_to_algebra(fun, meta, args, state),
          do: local_to_algebra(fun, meta, args, state)
   end
 
   ## Operators
 
-  defp binary_op_parens_quoted_to_algebra(quoted, state) do
-    %{binary_ops_level: binary_ops_level} = state
-    {doc, state} = quoted_to_algebra(quoted, %{state | binary_ops_level: 0})
-    {doc, %{state | binary_ops_level: binary_ops_level}}
+  # TODO: We can remove this workaround once we remove
+  # ?rearrange_uop from the parser in Elixir v2.0.
+  defp wrap_in_parens_if_op({:__block__, [], [expr]}, doc) do
+    wrap_in_parens_if_op(expr, doc)
+  end
+
+  # TODO: We will likely need to generalize this to
+  # wrap_in parens_if_necessary because do/end blocks
+  # also require parens.
+  defp wrap_in_parens_if_op(quoted, doc) do
+    if unary_op?(quoted) or binary_op?(quoted) do
+      surround("(", doc, ")", group: :strict)
+    else
+      doc
+    end
+  end
+
+  defp maybe_unary_op_to_algebra(fun, _meta, args, state) do
+    with [arg] <- args,
+         {_, _} <- Code.Identifier.unary_op(fun) do
+      {doc, state} = quoted_to_algebra(arg, state)
+
+      # not and ! are nestable, all others are not.
+      wrapped_doc =
+        case arg do
+          {nestable, _, [_]} when fun == nestable and nestable in [:!, :not] -> doc
+          _ -> wrap_in_parens_if_op(arg, doc)
+        end
+
+      # not requires a space unless the doc was wrapped.
+      wrapped_op =
+        if fun == :not and wrapped_doc == doc do
+          "not "
+        else
+          Atom.to_string(fun)
+        end
+
+      {concat(wrapped_op, wrapped_doc), state}
+    else
+      _ -> :error
+    end
+  end
+
+  defp unary_op?(quoted) do
+    with {fun, _, [_]} <- quoted,
+         {_, _} <- Code.Identifier.unary_op(fun) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  defp binary_op?(quoted) do
+    with {fun, _, [_, _]} <- quoted,
+         {_, _} <- Code.Identifier.binary_op(fun) do
+      true
+    else
+      _ -> false
+    end
   end
 
   ## Remote calls
@@ -192,6 +251,10 @@ defmodule CodeFormatter do
   defp closing_sigil_terminator(other) when other in ["\"", "'", "|", "/"], do: other
 
   ## Literals
+
+  defp atom_to_algebra(atom) when atom in [nil, true, false] do
+    Atom.to_string(atom)
+  end
 
   defp atom_to_algebra(atom) do
     string = Atom.to_string(atom)
