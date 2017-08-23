@@ -1,12 +1,35 @@
 defmodule CodeFormatter do
-  def format(string) do
+  import Inspect.Algebra, except: [format: 2]
+
+  @line_length 98
+
+  @doc """
+  Formats the given code `string`.
+  """
+  def format(string, opts \\ []) do
+    line_length = Keyword.get(opts, :line_length, @line_length)
+
     string
-    |> Code.string_to_quoted!(wrap_literals_in_blocks: true)
-    |> format_quoted()
-    |> IO.chardata_to_string()
+    |> to_algebra(opts)
+    |> Inspect.Algebra.format(line_length)
   end
 
-  defp format_quoted({:__block__, meta, [int]}) when is_integer(int) do
+  @doc """
+  Converts `string` to an algebra document.
+  """
+  def to_algebra(string, _opts \\ []) do
+    state = %{}
+    string
+    |> Code.string_to_quoted!(wrap_literals_in_blocks: true)
+    |> quoted_to_algebra(state)
+    |> elem(0)
+  end
+
+  defp quoted_to_algebra(quoted, state) do
+    {literal_to_algebra(quoted), state}
+  end
+
+  defp literal_to_algebra({:__block__, meta, [int]}) when is_integer(int) do
     case Keyword.fetch!(meta, :format) do
       base when base in [:decimal, :binary, :octal, :hex] ->
         inspect(int, base: base)
@@ -15,7 +38,7 @@ defmodule CodeFormatter do
       :char when int == ?\\ ->
         "?\\\\"
       :char ->
-        [??, int]
+        <<??, int::utf8>>
     end
   end
 end
