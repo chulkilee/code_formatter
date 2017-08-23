@@ -5,6 +5,7 @@ defmodule CodeFormatter do
   @double_quote "\""
   @double_heredoc "\"\"\""
   @single_quote "'"
+  @single_heredoc "'''"
 
   @doc """
   Formats the given code `string`.
@@ -40,12 +41,16 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({{:., _, [String, :to_charlist]}, _, [{:<<>>, _, entries}]} = quoted,
+  defp quoted_to_algebra({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, entries}]} = quoted,
                          state) do
-    if interpolated?(entries) do
-      interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
-    else
-      remote_to_algebra(quoted, state)
+    cond do
+      not interpolated?(entries) ->
+        remote_to_algebra(quoted, state)
+      meta[:format] == :list_heredoc ->
+        {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), @single_heredoc)
+        {line(@single_heredoc, doc), state}
+      true ->
+        interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
   end
 
@@ -59,12 +64,16 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({:__block__, _, [list]}, state) when is_list(list) do
-    if Enum.all?(list, & &1 in 0x0..0xFFFFFF) do
-      string = list |> List.to_string |> escape(@single_quote)
-      {@single_quote |> concat(string) |> concat(@single_quote), state}
-    else
-      raise "not yet implemented"
+  defp quoted_to_algebra({:__block__, meta, [list]}, state) when is_list(list) do
+    cond do
+      meta[:format] == :list_heredoc ->
+        string = list |> List.to_string |> escape(:none)
+        {@single_heredoc |> line(string) |> concat(@single_heredoc), state}
+      Enum.all?(list, & &1 in 0x0..0xFFFFFF) ->
+        string = list |> List.to_string |> escape(@single_quote)
+        {@single_quote |> concat(string) |> concat(@single_quote), state}
+      true ->
+        raise "not yet implemented"
     end
   end
 

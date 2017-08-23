@@ -280,4 +280,76 @@ defmodule CodeFormatterTest do
       '''), @short_length
     end
   end
+
+  describe "charlist heredocs" do
+    test "without escapes" do
+      assert_same ~S"""
+      '''
+      hello
+      '''
+      """
+    end
+
+    test "with escapes" do
+      assert_same ~S"""
+      '''
+      f\a\b\ro
+      '''
+      """
+
+      assert_same ~S"""
+      '''
+      multiple "\"" quotes
+      '''
+      """
+    end
+
+    test "with interpolation" do
+      assert_same ~S"""
+      '''
+      one
+      #{2}
+      three
+      '''
+      """
+
+      assert_same ~S"""
+      '''
+      one
+      "
+      #{2}
+      "
+      three
+      '''
+      """
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      '''
+      one #{"two two"} three
+      '''
+      """
+
+      good = ~S"""
+      '''
+      one #{
+        "two two"
+      } three
+      '''
+      """
+
+      assert_format bad, good, @short_length
+    end
+
+    test "literal new lines don't count towards line limit" do
+      assert_same ~S"""
+      '''
+      one
+      #{"two two"}
+      three
+      '''
+      """, @short_length
+    end
+  end
 end
