@@ -120,7 +120,7 @@ defmodule CodeFormatter do
   end
 
   defp quoted_to_algebra({fun, meta, args}, state) when is_atom(fun) and is_list(args) do
-    with :error <- sigil_to_algebra(fun, meta, args, state),
+    with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
          do: local_to_algebra(fun, meta, args, state)
   end
 
@@ -172,7 +172,7 @@ defmodule CodeFormatter do
 
   ## Sigils
 
-  defp sigil_to_algebra(fun, meta, args, state) do
+  defp maybe_sigil_to_algebra(fun, meta, args, state) do
     case {Atom.to_string(fun), args} do
       {<<"sigil_", name>>, [{:<<>>, _, entries}, modifiers]} ->
         opening_terminator = List.to_string(Keyword.fetch!(meta, :terminator))
