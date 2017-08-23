@@ -20,7 +20,7 @@ defmodule CodeFormatter do
   def to_algebra(string, _opts \\ []) do
     state = %{}
     string
-    |> Code.string_to_quoted!(wrap_literals_in_blocks: true)
+    |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
     |> quoted_to_algebra(state)
     |> elem(0)
   end
@@ -54,14 +54,15 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, _, [list]}, state) when is_list(list) do
     if Enum.all?(list, & &1 in 0x0..0xFFFFFF) do
-      {charlist_to_algebra(list), state}
+      string = list |> List.to_string |> escape(?')
+      {"'" <> string <> "'", state}
     else
       raise "not yet implemented"
     end
   end
 
   defp quoted_to_algebra({:__block__, _, [string]}, state) when is_binary(string) do
-    {string_to_algebra(string), state}
+    {"\"" <> escape(string, ?") <> "\"", state}
   end
 
   defp quoted_to_algebra({:__block__, _, [atom]}, state) when is_atom(atom) do
@@ -111,26 +112,19 @@ defmodule CodeFormatter do
 
   ## Literals
 
+  defp escape(string, codepoint) do
+    String.replace(string, <<codepoint::utf8>>, <<?\\, codepoint::utf8>>)
+  end
+
   defp atom_to_algebra(atom) do
-    binary = Atom.to_string(atom)
+    string = Atom.to_string(atom)
 
     case Code.Identifier.classify(atom) do
       type when type in [:callable, :not_callable] ->
-        IO.iodata_to_binary [?:, binary]
+        IO.iodata_to_binary [?:, string]
       _ ->
-        {escaped, _} = Code.Identifier.escape(binary, ?")
-        IO.iodata_to_binary [?:, ?", escaped, ?"]
+        IO.iodata_to_binary [?:, ?", escape(string, ?"), ?"]
     end
-  end
-
-  defp charlist_to_algebra(charlist) do
-    {escaped, _} = Code.Identifier.escape(List.to_string(charlist), ?')
-    IO.iodata_to_binary([?', escaped, ?'])
-  end
-
-  defp string_to_algebra(string) do
-    {escaped, _} = Code.Identifier.escape(string, ?")
-    IO.iodata_to_binary([?", escaped, ?"])
   end
 
   defp integer_to_algebra(text) do

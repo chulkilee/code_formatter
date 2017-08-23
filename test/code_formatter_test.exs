@@ -81,11 +81,11 @@ defmodule CodeFormatterTest do
       assert_same ~S["double \" quote"]
     end
 
-    test "converts literal new lines into escaped new lines" do
-      assert_format """
+    test "keeps literal new lines" do
+      assert_same """
       "fo
       o"
-      """, ~S["fo\no"]
+      """
     end
 
     test "with interpolation" do
@@ -115,6 +115,10 @@ defmodule CodeFormatterTest do
     test "with escapes" do
       assert_same ~S[:"f\a\b\ro"]
       assert_same ~S[:"double \" quote"]
+    end
+
+    test "with unicode" do
+      assert_same ~S[:ólá]
     end
 
     test "does not reformat aliases" do
@@ -155,11 +159,11 @@ defmodule CodeFormatterTest do
       assert_same ~S['single \' quote']
     end
 
-    test "converts literal new lines into escaped new lines" do
-      assert_format """
+    test "keeps literal new lines" do
+      assert_same """
       'fo
       o'
-      """, ~S['fo\no']
+      """
     end
 
     test "with interpolation" do
