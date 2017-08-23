@@ -29,6 +29,11 @@ defmodule CodeFormatter do
     {literal_to_algebra(quoted), state}
   end
 
+  defp literal_to_algebra({:__block__, _meta, [string]}) when is_binary(string) do
+    {escaped, _} = Code.Identifier.escape(string, ?")
+    IO.iodata_to_binary([?", escaped, ?"])
+  end
+
   defp literal_to_algebra({:__block__, meta, [int]}) when is_integer(int) do
     case Keyword.fetch!(meta, :format) do
       base when base in [:decimal, :binary, :octal, :hex] ->

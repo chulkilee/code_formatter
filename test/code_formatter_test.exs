@@ -54,4 +54,21 @@ defmodule CodeFormatterTest do
       assert_format "?\\s"
     end
   end
+
+  describe "string literals (double-quoted)" do
+    test "without escapes" do
+      assert_format ~S["foo"]
+    end
+
+    test "with escapes" do
+      assert_format ~S["f\a\b\ro"]
+    end
+
+    test "converts literal new lines into escaped new lines" do
+      assert_format """
+      "fo
+      o"
+      """, ~S["fo\no"]
+    end
+  end
 end
