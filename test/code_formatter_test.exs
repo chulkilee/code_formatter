@@ -3,6 +3,8 @@ defmodule CodeFormatterTest do
 
   import CodeFormatter.Case
 
+  @short_length [line_length: 10]
+
   describe "integer literals" do
     test "in decimal base" do
       assert_same "0"
@@ -60,6 +62,24 @@ defmodule CodeFormatterTest do
       "fo
       o"
       """, ~S["fo\no"]
+    end
+
+    test "with interpolation" do
+      assert_same ~S["one #{2} three"]
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      "one #{"two"} three"
+      """
+
+      good = ~S"""
+      "one #{
+        "two"
+      } three"
+      """
+
+      assert_format bad, good, @short_length
     end
   end
 end

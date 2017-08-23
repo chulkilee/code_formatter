@@ -25,9 +25,48 @@ defmodule CodeFormatter do
     |> elem(0)
   end
 
+  defp quoted_to_algebra({:<<>>, _, entries}, state) do
+    if interpolated?(entries) do
+      interpolation_to_algebra(entries, ?", state, "\"")
+    else
+      raise "not yet implemented"
+    end
+  end
+
   defp quoted_to_algebra(quoted, state) do
     {literal_to_algebra(quoted), state}
   end
+
+  ## Interpolation
+
+  # TODO: Test comments before an interpolated string/atom/charlist
+  # because none of those currently include line info in meta.
+  defp interpolated?(entries) do
+    Enum.all?(entries, fn
+      {:::, _, [{{:., _, [Kernel, :to_string]}, _, [_]}, {:binary, _, _}]} -> true
+      entry when is_binary(entry) -> true
+      _ -> false
+    end)
+  end
+
+  defp interpolation_to_algebra([entry | entries], escape, state, acc) when is_binary(entry) do
+    {escaped, _} = Code.Identifier.escape(entry, escape)
+    doc = IO.iodata_to_binary(escaped)
+    interpolation_to_algebra(entries, escape, state, concat(acc, doc))
+  end
+
+  defp interpolation_to_algebra([entry | entries], escape, state, acc) do
+    {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
+    {doc, state} = quoted_to_algebra(quoted, state)
+    doc = glue(nest(glue("\#{", "", doc), 2), "", "}")
+    interpolation_to_algebra(entries, escape, state, concat(acc, doc))
+  end
+
+  defp interpolation_to_algebra([], escape, state, acc) do
+    {group(concat(acc, <<escape>>), :strict), state}
+  end
+
+  ## Literals
 
   defp literal_to_algebra({:__block__, _meta, [string]}) when is_binary(string) do
     {escaped, _} = Code.Identifier.escape(string, ?")
