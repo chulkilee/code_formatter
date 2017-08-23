@@ -52,8 +52,20 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra(quoted, state) do
-    {literal_to_algebra(quoted), state}
+  defp quoted_to_algebra({:__block__, _, [list]}, state) when is_list(list) do
+    if Enum.all?(list, & &1 in 0x0..0xFFFFFF) do
+      {charlist_to_algebra(list), state}
+    else
+      raise "not yet implemented"
+    end
+  end
+
+  defp quoted_to_algebra({:__block__, _, [string]}, state) when is_binary(string) do
+    {string_to_algebra(string), state}
+  end
+
+  defp quoted_to_algebra({:__block__, meta, [integer]}, state) when is_integer(integer) do
+    {integer_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
   ## Remote calls
@@ -91,13 +103,18 @@ defmodule CodeFormatter do
 
   ## Literals
 
-  defp literal_to_algebra({:__block__, _meta, [string]}) when is_binary(string) do
+  defp charlist_to_algebra(charlist) do
+    {escaped, _} = Code.Identifier.escape(List.to_string(charlist), ?')
+    IO.iodata_to_binary([?', escaped, ?'])
+  end
+
+  defp string_to_algebra(string) do
     {escaped, _} = Code.Identifier.escape(string, ?")
     IO.iodata_to_binary([?", escaped, ?"])
   end
 
-  defp literal_to_algebra({:__block__, meta, [int]}) when is_integer(int) do
-    case Keyword.fetch!(meta, :original) do
+  defp integer_to_algebra(text) do
+    case text do
       [?0, ?x | rest] ->
         "0x" <> String.upcase(List.to_string(rest))
       [?0, base | _rest] = digits when base in [?b, ?o] ->

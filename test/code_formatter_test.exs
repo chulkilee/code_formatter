@@ -105,6 +105,15 @@ defmodule CodeFormatterTest do
   end
 
   describe "charlist literals" do
+    test "without escapes" do
+      assert_same ~S['foo']
+    end
+
+    test "with escapes" do
+      assert_same ~S['f\a\b\ro']
+      assert_same ~S['single \' quote']
+    end
+
     test "with interpolation" do
       assert_same ~S['one #{2} three']
     end
