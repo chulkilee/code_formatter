@@ -140,7 +140,7 @@ defmodule CodeFormatter do
   # wrap_in parens_if_necessary because do/end blocks
   # also require parens.
   defp wrap_in_parens_if_op(quoted, doc) do
-    if unary_op?(quoted) or binary_op?(quoted) do
+    if op?(quoted) do
       surround("(", doc, ")", group: :strict)
     else
       doc
@@ -173,21 +173,14 @@ defmodule CodeFormatter do
     end
   end
 
-  defp unary_op?(quoted) do
-    with {fun, _, [_]} <- quoted,
-         {_, _} <- Code.Identifier.unary_op(fun) do
-      true
-    else
-      _ -> false
-    end
-  end
-
-  defp binary_op?(quoted) do
-    with {fun, _, [_, _]} <- quoted,
-         {_, _} <- Code.Identifier.binary_op(fun) do
-      true
-    else
-      _ -> false
+  defp op?(quoted) do
+    case quoted do
+      {op, _, [_, _]} when is_atom(op) ->
+        Code.Identifier.binary_op(op) != :error
+      {op, _, [_]} when is_atom(op) ->
+        Code.Identifier.unary_op(op) != :error
+      _ ->
+        false
     end
   end
 
