@@ -22,11 +22,17 @@ defmodule CodeFormatter do
   Converts `string` to an algebra document.
   """
   def to_algebra(string, _opts \\ []) do
-    state = %{}
     string
     |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
-    |> quoted_to_algebra(state)
+    |> quoted_to_algebra(state())
     |> elem(0)
+  end
+
+  defp state do
+    %{
+      # How many levels we handle binary ops without parens.
+      binary_ops_level: 2
+    }
   end
 
   defp quoted_to_algebra({:<<>>, meta, entries}, state) do
@@ -99,9 +105,31 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
+  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, state) do
+    {head, state} =
+      if is_atom(head) do
+        {Atom.to_string(head), state}
+      else
+        binary_op_parens_quoted_to_algebra(head, state)
+      end
+    {Enum.reduce(tail, head, &concat(&2, "." <> Atom.to_string(&1))), state}
+  end
+
+  defp quoted_to_algebra({var, _meta, context}, state) when is_atom(context) do
+    {Atom.to_string(var), state}
+  end
+
   defp quoted_to_algebra({fun, meta, args}, state) when is_atom(fun) and is_list(args) do
     with :error <- sigil_to_algebra(fun, meta, args, state),
          do: local_to_algebra(fun, meta, args, state)
+  end
+
+  ## Operators
+
+  defp binary_op_parens_quoted_to_algebra(quoted, state) do
+    %{binary_ops_level: binary_ops_level} = state
+    {doc, state} = quoted_to_algebra(quoted, %{state | binary_ops_level: 0})
+    {doc, %{state | binary_ops_level: binary_ops_level}}
   end
 
   ## Remote calls

@@ -71,52 +71,24 @@ defmodule CodeFormatterTest do
     end
   end
 
-  describe "string literals" do
-    test "without escapes" do
-      assert_same ~S["foo"]
+  describe "aliases" do
+    test "with atom-only parts" do
+      assert_same "Elixir"
+      assert_same "Elixir.Foo"
+      assert_same "Foo.Bar.Baz"
     end
 
-    test "with escapes" do
-      assert_same ~S["f\a\b\ro"]
-      assert_same ~S["double \" quote"]
+    test "removes spaces between aliases" do
+      assert_format "Foo . Bar . Baz", "Foo.Bar.Baz"
     end
 
-    test "keeps literal new lines" do
-      assert_same """
-      "fo
-      o"
-      """
+    test "starting with expression" do
+      assert_same "__MODULE__.Foo.Bar"
+      assert_same "'Foo'.Bar.Baz" # Syntatically valid, semantically invalid
     end
 
-    test "with interpolation" do
-      assert_same ~S["one #{2} three"]
-    end
-
-    test "with escapes and interpolation" do
-      assert_same ~S["one\n\"#{2}\"\nthree"]
-    end
-
-    test "with interpolation on line limit" do
-      bad = ~S"""
-      "one #{"two"} three"
-      """
-
-      good = ~S"""
-      "one #{
-        "two"
-      } three"
-      """
-
-      assert_format bad, good, @short_length
-    end
-
-    test "literal new lines don't count towards line limit" do
-      assert_same ~S"""
-      "one
-      #{"two"}
-      three"
-      """, @short_length
-    end
+    # TODO: Implement this once we have binary ops
+    # test "wraps the head in parens if it is a binary operation"
   end
 
   describe "atom literals" do
@@ -164,6 +136,54 @@ defmodule CodeFormatterTest do
       """
 
       assert_format bad, good, @short_length
+    end
+  end
+
+  describe "string literals" do
+    test "without escapes" do
+      assert_same ~S["foo"]
+    end
+
+    test "with escapes" do
+      assert_same ~S["f\a\b\ro"]
+      assert_same ~S["double \" quote"]
+    end
+
+    test "keeps literal new lines" do
+      assert_same """
+      "fo
+      o"
+      """
+    end
+
+    test "with interpolation" do
+      assert_same ~S["one #{2} three"]
+    end
+
+    test "with escapes and interpolation" do
+      assert_same ~S["one\n\"#{2}\"\nthree"]
+    end
+
+    test "with interpolation on line limit" do
+      bad = ~S"""
+      "one #{"two"} three"
+      """
+
+      good = ~S"""
+      "one #{
+        "two"
+      } three"
+      """
+
+      assert_format bad, good, @short_length
+    end
+
+    test "literal new lines don't count towards line limit" do
+      assert_same ~S"""
+      "one
+      #{"two"}
+      three"
+      """, @short_length
     end
   end
 
