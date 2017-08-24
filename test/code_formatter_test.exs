@@ -821,4 +821,22 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @medium_length
     end
   end
+
+  describe "module attributes" do
+    test "when reading" do
+      assert_format "@ my_attribute", "@my_attribute"
+    end
+
+    test "when setting" do
+      assert_format "@ my_attribute :some_value", "@my_attribute(:some_value)"
+    end
+
+    test "doesn't split when reading on line limit" do
+      assert_same "@my_long_attribute", @short_length
+    end
+
+    test "doesn't split when setting on line limit" do
+      assert_format "@my_long_attribute :some_value", "@my_long_attribute(:some_value)", @short_length
+    end
+  end
 end

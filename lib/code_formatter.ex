@@ -148,6 +148,10 @@ defmodule CodeFormatter do
     {Atom.to_string(var), state}
   end
 
+  defp quoted_to_algebra({:@, _meta, [arg]}, context, state) do
+    module_attribute_to_algebra(arg, context, state)
+  end
+
   defp quoted_to_algebra({fun, meta, args}, _context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
@@ -296,6 +300,27 @@ defmodule CodeFormatter do
         Code.Identifier.unary_op(op) != :error
       _ ->
         false
+    end
+  end
+
+  ## Module attributes
+
+  # @my_attribute
+  defp module_attribute_to_algebra({name, _meta, context}, _context, state)
+       when is_atom(context) do
+    {"@" <> Atom.to_string(name), state}
+  end
+
+  # @my_attribute some_value
+  defp module_attribute_to_algebra({name, _meta, [value]}, context, state) do
+    attribute = "@" <> Atom.to_string(name)
+    {value_doc, state} = quoted_to_algebra(value, :argument, state)
+
+    case context do
+      :argument ->
+        {concat(attribute, surround("(", value_doc, ")")), state}
+      :block ->
+        {space(attribute, value_doc), state}
     end
   end
 
