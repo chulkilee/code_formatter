@@ -167,6 +167,8 @@ defmodule CodeFormatterTest do
 
     test "with interpolation" do
       assert_same ~S["one #{2} three"]
+      # Interpolation uses block context
+      assert_format ~S["one #{@two(three)}"], ~S["one #{@two three}"]
     end
 
     test "with escapes and interpolation" do
@@ -850,7 +852,11 @@ defmodule CodeFormatterTest do
     end
 
     test "doesn't split when setting on line limit" do
-      assert_format "@my_long_attribute :some_value", "@my_long_attribute :some_value", @short_length
+      assert_same "@my_long_attribute :some_value", @short_length
+    end
+
+    test "is parenthesized when setting inside a call" do
+      assert_same "my_fun(@foo(bar), baz)"
     end
 
     test "fall back to @ as an operator when needed" do
