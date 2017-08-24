@@ -93,7 +93,7 @@ defmodule CodeFormatter do
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
       _other ->
-        raise "not yet implemented"
+        list_to_algebra(list, state)
     end
   end
 
@@ -516,6 +516,14 @@ defmodule CodeFormatter do
     |> String.split("\n")
     |> Enum.reverse()
     |> Enum.reduce(&line/2)
+  end
+
+  ## Lists
+
+  # TODO: only be flex if elements are "simple expressions".
+  defp list_to_algebra(list, state) do
+    {args_doc, state} = args_to_algebra(list, &quoted_to_algebra(&1, :argument, &2), state)
+    {surround("[", args_doc, "]"), state}
   end
 
   ## Quoted helpers

@@ -200,6 +200,8 @@ defmodule CodeFormatterTest do
 
   describe "charlist literals" do
     test "without escapes" do
+      assert_same ~S['']
+      assert_same ~S[' ']
       assert_same ~S['foo']
     end
 
@@ -487,6 +489,33 @@ defmodule CodeFormatterTest do
     test "is flex on line limits" do
       assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
       assert_format "<<1::1, 2::bits, 3::4-binary>>", "<<1::1, 2::bits,\n  3::4-binary>>", @medium_length
+    end
+  end
+
+  describe "lists" do
+    test "empty" do
+      assert_format "[ ]", "[]"
+      assert_format "[\n]", "[]"
+    end
+
+    test "with elements" do
+      assert_format "[ 1 , 2,3, 4 ]", "[1, 2, 3, 4]"
+    end
+
+    test "are flex on line limit" do
+      bad = """
+      [11, 22, 33, 44]
+      """
+      good = """
+      [11, 22,
+       33, 44]
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "[1,]", "[1]"
+      assert_format "[1, 2, 3,]", "[1, 2, 3]"
     end
   end
 
