@@ -38,7 +38,7 @@ defmodule CodeFormatter do
   def to_algebra(string, _opts \\ []) do
     string
     |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
-    |> quoted_to_algebra(:argument, state())
+    |> quoted_to_algebra(:block, state())
     |> elem(0)
   end
 
@@ -365,7 +365,7 @@ defmodule CodeFormatter do
 
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
-    {doc, state} = quoted_to_algebra(quoted, :argument, state)
+    {doc, state} = quoted_to_algebra(quoted, :block, state)
     doc = glue(nest(glue("\#{", "", doc), 2), "", "}")
     interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
