@@ -221,10 +221,10 @@ defmodule CodeFormatter do
         {concat(concat(left, op), right), state}
       fun in @new_line_before_binary_operators ->
         op = Atom.to_string(fun) <> " "
-        {concat(glue(left, " ", op), nest_by_length(right, op)), state}
+        {concat(glue(left, op), nest_by_length(right, op)), state}
       true ->
         op = " " <> Atom.to_string(fun)
-        {concat(left, nest(glue(op, " ", right), nesting)), state}
+        {concat(left, nest(glue(op, right), nesting)), state}
     end
   end
 
@@ -279,7 +279,7 @@ defmodule CodeFormatter do
         {glue(concat(doc_acc, ","), arg_doc), state_acc}
       end)
 
-    {surround("#{fun}(", nest(args_doc, String.length(fun)), ")"), state}
+    {surround("#{fun}(", nest_by_length(args_doc, fun), ")"), state}
   end
 
   ## Interpolation
