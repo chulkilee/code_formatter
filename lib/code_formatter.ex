@@ -85,14 +85,14 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, meta, [list]}, _context, state)
        when is_list(list) do
-    cond do
-      meta[:format] == :list_heredoc ->
+    case meta[:format] do
+      :list_heredoc ->
         string = list |> List.to_string |> escape_string(:none)
         {@single_heredoc |> line(string) |> concat(@single_heredoc), state}
-      Enum.all?(list, & &1 in 0x0..0xFFFFFF) ->
+      :charlist ->
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
-      true ->
+      _other ->
         raise "not yet implemented"
     end
   end
