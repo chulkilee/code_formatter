@@ -148,8 +148,8 @@ defmodule CodeFormatter do
     {Atom.to_string(var), state}
   end
 
-  defp quoted_to_algebra({:@, _meta, [arg]}, context, state) do
-    module_attribute_to_algebra(arg, context, state)
+  defp quoted_to_algebra({:@, meta, [arg]}, context, state) do
+    module_attribute_to_algebra(arg, meta, context, state)
   end
 
   defp quoted_to_algebra({fun, meta, args}, _context, state)
@@ -162,7 +162,6 @@ defmodule CodeFormatter do
 
   ## Operators
 
-  # TODO: Handle @
   # TODO: Handle &
   # TODO: Handle in and not in
 
@@ -305,22 +304,28 @@ defmodule CodeFormatter do
 
   ## Module attributes
 
-  # @my_attribute
-  defp module_attribute_to_algebra({name, _meta, context}, _context, state)
-       when is_atom(context) do
-    {"@" <> Atom.to_string(name), state}
+  defp module_attribute_to_algebra({:__block__, _meta, _args} = block, meta,
+                                   _context, state) do
+    {_, _} = maybe_unary_op_to_algebra(:@, meta, [block], state)
   end
 
-  # @my_attribute some_value
-  defp module_attribute_to_algebra({name, _meta, [value]}, context, state) do
-    attribute = "@" <> Atom.to_string(name)
-    {value_doc, state} = quoted_to_algebra(value, :argument, state)
+  defp module_attribute_to_algebra({name, _meta, value_or_context} = arg, meta,
+                                   context, state) do
+    case {Code.Identifier.classify(name), value_or_context} do
+      {:callable_local, ctx} when is_atom(ctx) ->
+        {"@" <> Atom.to_string(name), state}
+      {:callable_local, [value]} ->
+        attribute = "@" <> Atom.to_string(name)
+        {value_doc, state} = quoted_to_algebra(value, :argument, state)
 
-    case context do
-      :argument ->
-        {concat(attribute, surround("(", value_doc, ")")), state}
-      :block ->
-        {space(attribute, value_doc), state}
+        case context do
+          :argument ->
+            {concat(attribute, surround("(", value_doc, ")")), state}
+          :block ->
+            {space(attribute, value_doc), state}
+        end
+      _other ->
+        {_, _} = maybe_unary_op_to_algebra(:@, meta, [arg], state)
     end
   end
 

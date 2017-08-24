@@ -838,5 +838,11 @@ defmodule CodeFormatterTest do
     test "doesn't split when setting on line limit" do
       assert_format "@my_long_attribute :some_value", "@my_long_attribute(:some_value)", @short_length
     end
+
+    test "fall back to @ as an operator when needed" do
+      assert_format "@+1", "@(+1)"
+      assert_same "@(1 + 1)"
+      assert_same "@:foo"
+    end
   end
 end
