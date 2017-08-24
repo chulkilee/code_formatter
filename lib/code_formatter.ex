@@ -46,7 +46,7 @@ defmodule CodeFormatter do
     %{}
   end
 
-  defp quoted_to_algebra({:<<>>, meta, entries}, :argument, state) do
+  defp quoted_to_algebra({:<<>>, meta, entries}, _context, state) do
     cond do
       not interpolated?(entries) ->
         raise "not yet implemented"
@@ -59,7 +59,7 @@ defmodule CodeFormatter do
   end
 
   defp quoted_to_algebra({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, entries}]} = quoted,
-                         :argument, state) do
+                         _context, state) do
     cond do
       not interpolated?(entries) ->
         remote_to_algebra(quoted, state)
@@ -73,7 +73,7 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({{:., _, [:erlang, :binary_to_atom]}, _,
                           [{:<<>>, _, entries}, :utf8]} = quoted,
-                         :argument, state) do
+                         _context, state) do
     if interpolated?(entries) do
       interpolation_to_algebra(entries, @double_quote, state, ":\"", @double_quote)
     else
@@ -81,8 +81,8 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({:__block__, meta, [list]}, :argument, state)
-      when is_list(list) do
+  defp quoted_to_algebra({:__block__, meta, [list]}, _context, state)
+       when is_list(list) do
     cond do
       meta[:format] == :list_heredoc ->
         string = list |> List.to_string |> escape_string(:none)
@@ -95,7 +95,7 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({:__block__, meta, [string]}, :argument, state)
+  defp quoted_to_algebra({:__block__, meta, [string]}, _context, state)
        when is_binary(string) do
     if meta[:format] == :bin_heredoc do
       string = escape_string(string, :none)
@@ -106,32 +106,32 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({:__block__, _, [atom]}, :argument, state)
+  defp quoted_to_algebra({:__block__, _, [atom]}, _context, state)
        when is_atom(atom) do
     {atom_to_algebra(atom), state}
   end
 
-  defp quoted_to_algebra({:__block__, meta, [integer]}, :argument, state)
+  defp quoted_to_algebra({:__block__, meta, [integer]}, _context, state)
        when is_integer(integer) do
     {integer_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
-  defp quoted_to_algebra({:__block__, meta, [float]}, :argument, state)
+  defp quoted_to_algebra({:__block__, meta, [float]}, _context, state)
        when is_float(float) do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
   defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, fun, [_] = args}]},
-                         :argument, state) do
+                         _context, state) do
     {doc, state} = local_to_algebra(:unquote_splicing, fun, args, state)
     {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
-  defp quoted_to_algebra({:__block__, _meta, [arg]}, :argument, state) do
+  defp quoted_to_algebra({:__block__, _meta, [arg]}, _context, state) do
     quoted_to_algebra(arg, :argument, state)
   end
 
-  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, :argument, state) do
+  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, _context, state) do
     {doc, state} =
       if is_atom(head) do
         {Atom.to_string(head), state}
@@ -143,12 +143,12 @@ defmodule CodeFormatter do
     {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
   end
 
-  defp quoted_to_algebra({var, _meta, context}, :argument, state)
-       when is_atom(context) do
+  defp quoted_to_algebra({var, _meta, var_context}, _context, state)
+       when is_atom(var_context) do
     {Atom.to_string(var), state}
   end
 
-  defp quoted_to_algebra({fun, meta, args}, :argument, state)
+  defp quoted_to_algebra({fun, meta, args}, _context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
          :error <- maybe_unary_op_to_algebra(fun, meta, args, state),
