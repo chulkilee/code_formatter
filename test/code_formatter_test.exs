@@ -471,13 +471,22 @@ defmodule CodeFormatterTest do
       assert_format "<<1,2,3>>", "<<1, 2, 3>>"
     end
 
-    test "is flex on line limits" do
-      assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
-    end
-
     test "add parens on first and last in case of ambiguity" do
       assert_format "<< <<>>, <<>>, <<>> >>", "<<(<<>>), <<>>, (<<>>)>>"
       assert_format "<< <<>>::1, <<>>::2, <<>>::3 >>", "<<(<<>>)::1, <<>>::2, <<>>::3>>"
+    end
+
+    test "with modifiers" do
+      assert_format "<< 1 :: 1 >>", "<<1::1>>"
+      assert_format "<< 1 :: 2 + 3 >>", "<<1::(2 + 3)>>"
+      assert_format "<< 1 :: 2 - integer >>", "<<1::2-integer>>"
+      assert_format "<< 1 :: 2 - unit(3) >>", "<<1::2-unit(3)>>"
+      assert_format "<< 1 :: 2 - unit(3) - 4 * 5 >>", "<<1::2-unit(3)-(4 * 5)>>"
+    end
+
+    test "is flex on line limits" do
+      assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
+      assert_format "<<1::1, 2::bits, 3::4-binary>>", "<<1::1, 2::bits,\n  3::4-binary>>", @medium_length
     end
   end
 

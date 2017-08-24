@@ -415,18 +415,28 @@ defmodule CodeFormatter do
     {surround("<<", nest(args_doc, 1), ">>"), state}
   end
 
-  defp bitstring_to_algebra({{:::, _, [segment, modifier]}, i}, state, _last) do
+  defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, _last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
     doc = bitstring_wrap_parens(segment, doc, i == 0)
 
-    {modifier, state} = quoted_to_algebra(modifier, :argument, state)
-    doc = concat(concat(doc, "::"), wrap_in_parens_if_inspected_atom(modifier))
+    {spec, state} = bitstring_spec_to_algebra(spec, state)
+    doc = concat(concat(doc, "::"), wrap_in_parens_if_inspected_atom(spec))
     {doc, state}
   end
 
   defp bitstring_to_algebra({segment, i}, state, last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
     {bitstring_wrap_parens(segment, doc, i == 0 or i == last), state}
+  end
+
+  defp bitstring_spec_to_algebra({:-, _, [left, right]}, state) do
+    {left, state} = bitstring_spec_to_algebra(left, state)
+    {right, state} = quoted_to_algebra_with_parens_if_necessary(right, :argument, state)
+    {concat(concat(left, "-"), right), state}
+  end
+
+  defp bitstring_spec_to_algebra(spec, state) do
+    quoted_to_algebra_with_parens_if_necessary(spec, :argument, state)
   end
 
   defp bitstring_wrap_parens({:<<>>, _, _}, doc, true) do
