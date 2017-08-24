@@ -474,6 +474,11 @@ defmodule CodeFormatterTest do
     test "is flex on line limits" do
       assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
     end
+
+    test "add parens on first and last in case of ambiguity" do
+      assert_format "<< <<>>, <<>>, <<>> >>", "<<(<<>>), <<>>, (<<>>)>>"
+      assert_format "<< <<>>::1, <<>>::2, <<>>::3 >>", "<<(<<>>)::1, <<>>::2, <<>>::3>>"
+    end
   end
 
   describe "unary operators" do

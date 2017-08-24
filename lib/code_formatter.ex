@@ -407,12 +407,34 @@ defmodule CodeFormatter do
   ## Bitstrings
 
   defp bitstring_to_algebra(args, state) do
-    {args_doc, state} = args_to_algebra(args, &bitstring_segment_to_algebra/2, state)
+    last = length(args) - 1
+    {args_doc, state} =
+      args
+      |> Enum.with_index()
+      |> args_to_algebra(&bitstring_to_algebra(&1, &2, last), state)
     {surround("<<", nest(args_doc, 1), ">>"), state}
   end
 
-  defp bitstring_segment_to_algebra(segment, state) do
-    quoted_to_algebra(segment, :argument, state)
+  defp bitstring_to_algebra({{:::, _, [segment, modifier]}, i}, state, _last) do
+    {doc, state} = quoted_to_algebra(segment, :argument, state)
+    doc = bitstring_wrap_parens(segment, doc, i == 0)
+
+    {modifier, state} = quoted_to_algebra(modifier, :argument, state)
+    doc = concat(concat(doc, "::"), wrap_in_parens_if_inspected_atom(modifier))
+    {doc, state}
+  end
+
+  defp bitstring_to_algebra({segment, i}, state, last) do
+    {doc, state} = quoted_to_algebra(segment, :argument, state)
+    {bitstring_wrap_parens(segment, doc, i == 0 or i == last), state}
+  end
+
+  defp bitstring_wrap_parens({:<<>>, _, _}, doc, true) do
+    concat(concat("(", doc), ")")
+  end
+
+  defp bitstring_wrap_parens(_, doc, _) do
+    doc
   end
 
   ## Literals
@@ -507,6 +529,14 @@ defmodule CodeFormatter do
     else
       doc
     end
+  end
+
+  defp wrap_in_parens_if_inspected_atom(":" <> _ = doc) do
+    "(" <> doc <> ")"
+  end
+
+  defp wrap_in_parens_if_inspected_atom(doc) do
+    doc
   end
 
   defp args_to_algebra([], _fun, _state) do
