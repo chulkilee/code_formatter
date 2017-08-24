@@ -4,6 +4,7 @@ defmodule CodeFormatterTest do
   import CodeFormatter.Case
 
   @short_length [line_length: 10]
+  @medium_length [line_length: 20]
 
   describe "integer literals" do
     test "in decimal base" do
@@ -561,7 +562,7 @@ defmodule CodeFormatterTest do
       assert_format "1|>2", "1 |> 2"
     end
 
-    test "breaks into new line" do
+    test "breaks into new line with left precedence" do
       bad = "123_456_789 |> 987_654_321"
       good = """
       123_456_789
@@ -601,7 +602,65 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
-    test "with multiple of the same entry" do
+    test "breaks into new line with right precedence" do
+      bad = "123_456_789 | 987_654_321"
+      good = """
+      123_456_789
+      | 987_654_321
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 | foo(bar)"
+      good = """
+      123
+      | foo(bar)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 | foo(bar, baz)"
+      good = """
+      123
+      | foo(bar,
+            baz)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, 123 | bar(baz))"
+      good = """
+      foo(bar,
+          123
+          | bar(baz))
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, baz) | 123"
+      good = """
+      foo(bar,
+          baz)
+      | 123
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, baz) | 123 | 456"
+      good = """
+      foo(bar,
+          baz)
+      | 123
+      | 456
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 | foo(bar, baz) | 456"
+      good = """
+      123
+      | foo(bar,
+            baz)
+      | 456
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the same entry and left precedence" do
       assert_same "foo |> bar |> baz"
 
       bad = "foo |> bar |> baz"
@@ -609,6 +668,42 @@ defmodule CodeFormatterTest do
       foo
       |> bar
       |> baz
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the same entry and right precedence" do
+      assert_same "foo when bar when baz"
+
+      bad = "foo when bar when baz"
+      good = """
+      foo
+      when bar
+      when baz
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the different entry and same precedence" do
+      assert_same "foo <|> bar ~> baz"
+
+      bad = "foo <|> bar ~> baz"
+      good = """
+      foo
+      <|> bar
+      ~> baz
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the different entry and different precedence" do
+      assert_same "foo when bar | baz"
+
+      bad = "foo when bar | baz"
+      good = """
+      foo
+      when bar
+           | baz
       """
       assert_format bad, good, @short_length
     end
@@ -669,6 +764,61 @@ defmodule CodeFormatterTest do
         baz
       """
       assert_format bad, good, @short_length
+    end
+
+    test "with multiple entries on optional parens" do
+      assert_format "(a + b) == (c + d)", "a + b == c + d"
+      assert_format "a + (b == c) + d", "a + (b == c) + d"
+
+      bad = "(a + b) == (c + d)"
+      good = """
+      a + b ==
+        c + d
+      """
+      assert_format bad, good, @short_length
+
+      bad = "a * (b + c) * d"
+      good = """
+      a *
+        (b +
+           c) *
+        d
+      """
+      assert_format bad, good, @short_length
+
+      bad = "one * (two + three) * four"
+      good = """
+      one *
+        (two + three) *
+        four
+      """
+      assert_format bad, good, @medium_length
+
+      bad = "one * (two + three + four) * five"
+      good = """
+      one *
+        (two + three +
+           four) * five
+      """
+      assert_format bad, good, @medium_length
+    end
+
+    test "with multiple entries and required parens" do
+      assert_same "(a |> b) ++ (c |> d)"
+      assert_format "a + b |> c + d", "(a + b) |> (c + d)"
+      assert_format "a ++ b |> c ++ d", "(a ++ b) |> (c ++ d)"
+      assert_format "a |> b ++ c |> d", "a |> (b ++ c) |> d"
+    end
+
+    test "mixed before and after lines" do
+      bad = "a when b and c when d"
+      good = """
+      a
+      when b and
+             c
+      when d
+      """
+      assert_format bad, good, @medium_length
     end
   end
 end
