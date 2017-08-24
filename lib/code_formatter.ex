@@ -412,7 +412,7 @@ defmodule CodeFormatter do
     string = Atom.to_string(atom)
 
     case Code.Identifier.classify(atom) do
-      type when type in [:callable, :not_callable] ->
+      type when type in [:callable_local, :callable_operator, :not_callable] ->
         IO.iodata_to_binary [?:, string]
       _ ->
         IO.iodata_to_binary [?:, ?", escape_string(string, "\""), ?"]
