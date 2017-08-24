@@ -48,8 +48,10 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:<<>>, meta, entries}, _context, state) do
     cond do
+      entries == [] ->
+        {"<<>>", state}
       not interpolated?(entries) ->
-        raise "not yet implemented"
+        bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
         {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), @double_heredoc)
         {line(@double_heredoc, doc), state}
@@ -136,10 +138,9 @@ defmodule CodeFormatter do
       if is_atom(head) do
         {Atom.to_string(head), state}
       else
-        quoted_to_algebra(head, :argument, state)
+        quoted_to_algebra_with_parens_if_necessary(head, :argument, state)
       end
 
-    doc = wrap_in_parens_if_necessary(head, doc)
     {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
   end
 
@@ -341,16 +342,9 @@ defmodule CodeFormatter do
     {Atom.to_string(fun) <> "()", state}
   end
 
-  defp local_to_algebra(fun, _meta, [first_arg | other_args], state) do
+  defp local_to_algebra(fun, _meta, args, state) do
     fun = Atom.to_string(fun)
-    {args_doc, state} = quoted_to_algebra(first_arg, :argument, state)
-
-    {args_doc, state} =
-      Enum.reduce(other_args, {args_doc, state}, fn arg, {doc_acc, state_acc} ->
-        {arg_doc, state_acc} = quoted_to_algebra(arg, :argument, state_acc)
-        {glue(concat(doc_acc, ","), arg_doc), state_acc}
-      end)
-
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {surround("#{fun}(", nest_by_length(args_doc, fun), ")"), state}
   end
 
@@ -406,6 +400,17 @@ defmodule CodeFormatter do
   defp closing_sigil_terminator("{"), do: "}"
   defp closing_sigil_terminator("<"), do: ">"
   defp closing_sigil_terminator(other) when other in ["\"", "'", "|", "/"], do: other
+
+  ## Bitstrings
+
+  defp bitstring_to_algebra(args, state) do
+    {args_doc, state} = args_to_algebra(args, &bitstring_segment_to_algebra/2, state)
+    {surround("<<", nest(args_doc, 1), ">>"), state}
+  end
+
+  defp bitstring_segment_to_algebra(segment, state) do
+    quoted_to_algebra(segment, :argument, state)
+  end
 
   ## Literals
 
@@ -480,6 +485,11 @@ defmodule CodeFormatter do
 
   ## Quoted helpers
 
+  defp quoted_to_algebra_with_parens_if_necessary(ast, context, state) do
+    {doc, state} = quoted_to_algebra(ast, context, state)
+    {wrap_in_parens_if_necessary(ast, doc), state}
+  end
+
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
   defp wrap_in_parens_if_necessary({:__block__, [], [expr]}, doc) do
@@ -494,6 +504,17 @@ defmodule CodeFormatter do
     else
       doc
     end
+  end
+
+  defp args_to_algebra([], _fun, _state) do
+    ""
+  end
+
+  defp args_to_algebra([arg | args], fun, state) do
+    Enum.reduce(args, fun.(arg, state), fn arg, {doc_acc, state_acc} ->
+      {arg_doc, state_acc} = fun.(arg, state_acc)
+      {glue(concat(doc_acc, ","), arg_doc), state_acc}
+    end)
   end
 
   ## Algebra helpers

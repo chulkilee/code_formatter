@@ -460,6 +460,20 @@ defmodule CodeFormatterTest do
     end
   end
 
+  describe "bitstrings" do
+    test "without arguments" do
+      assert_format "<<>>", "<<>>"
+    end
+
+    test "with arguments" do
+      assert_format "<<1,2,3>>", "<<1, 2, 3>>"
+    end
+
+    test "is flex on line limits" do
+      assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
+    end
+  end
+
   describe "unary operators" do
     test "formats symbol operators without spaces" do
       assert_format "+ 1", "+1"
