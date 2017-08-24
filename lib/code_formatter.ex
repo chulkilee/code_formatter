@@ -549,8 +549,8 @@ defmodule CodeFormatter do
     doc
   end
 
-  defp args_to_algebra([], _fun, _state) do
-    ""
+  defp args_to_algebra([], _fun, state) do
+    {empty(), state}
   end
 
   defp args_to_algebra([arg | args], fun, state) do
