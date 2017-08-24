@@ -545,8 +545,16 @@ defmodule CodeFormatterTest do
     end
   end
 
-  # TODO: Test what happens with a local call on the right side of the operator.
-  # Who is responsible for the group?
+  describe "binary operators without newline" do
+    test "formats without spaces" do
+      assert_same "1 in 2"
+      assert_format "1\\\\2", "1 \\\\ 2"
+    end
+
+    test "never breaks" do
+      assert_same "123_456_789 in 987_654_321", @short_length
+    end
+  end
 
   describe "binary operators with preceding new line" do
     test "formats with spaces" do
@@ -558,6 +566,49 @@ defmodule CodeFormatterTest do
       good = """
       123_456_789
       |> 987_654_321
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 |> foo(bar)"
+      good = """
+      123
+      |> foo(bar)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 |> foo(bar, baz)"
+      good = """
+      123
+      |> foo(bar,
+             baz)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, 123 |> bar(baz))"
+      good = """
+      foo(bar,
+          123
+          |> bar(baz))
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, baz) |> 123"
+      good = """
+      foo(bar,
+          baz)
+      |> 123
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the same entry" do
+      assert_same "foo |> bar |> baz"
+
+      bad = "foo |> bar |> baz"
+      good = """
+      foo
+      |> bar
+      |> baz
       """
       assert_format bad, good, @short_length
     end
@@ -572,7 +623,50 @@ defmodule CodeFormatterTest do
       bad = "123_456_789 ++ 987_654_321"
       good = """
       123_456_789 ++
-      987_654_321
+        987_654_321
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 ++ foo(bar)"
+      good = """
+      123 ++
+        foo(bar)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 ++ foo(bar, baz)"
+      good = """
+      123 ++
+        foo(bar,
+            baz)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, 123 ++ bar(baz))"
+      good = """
+      foo(bar,
+          123 ++
+            bar(baz))
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, baz) ++ 123"
+      good = """
+      foo(bar,
+          baz) ++
+        123
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the same entry" do
+      assert_same "foo ++ bar ++ baz"
+
+      bad = "foo ++ bar ++ baz"
+      good = """
+      foo ++
+        bar ++
+        baz
       """
       assert_format bad, good, @short_length
     end

@@ -10,6 +10,9 @@ defmodule CodeFormatter do
   # Operators that do not have space between operands
   @no_space_binary_operators [:..]
 
+  # Operators that do not have newline between operands
+  @no_newline_binary_operators [:\\, :in]
+
   # Operators that start on the next line in case of breaks
   @new_line_before_binary_operators [:|, :when, :|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
 
@@ -196,24 +199,32 @@ defmodule CodeFormatter do
   defp maybe_binary_op_to_algebra(fun, _meta, args, state) do
     with [left, right] <- args,
          {_, _} <- Code.Identifier.binary_op(fun) do
-      binary_op_to_algebra(fun, left, right, state, 2)
+      {doc, state} = binary_op_to_algebra(fun, left, right, state, 2)
+      {group(doc, :strict), state}
     else
       _ -> :error
     end
   end
 
-  defp binary_op_to_algebra(fun, left, right, state, _nesting) do
+  # Note that, if you call this function directly,
+  # you are required to set up the proper group.
+  defp binary_op_to_algebra(fun, left, right, state, nesting) do
     {left, state} = binary_operand_to_algebra(left, state, fun, :left)
     {right, state} = binary_operand_to_algebra(right, state, fun, :right)
-    op = Atom.to_string(fun)
 
     cond do
       fun in @no_space_binary_operators ->
+        op = Atom.to_string(fun)
+        {concat(concat(left, op), right), state}
+      fun in @no_newline_binary_operators ->
+        op = " " <> Atom.to_string(fun) <> " "
         {concat(concat(left, op), right), state}
       fun in @new_line_before_binary_operators ->
-        {concat(glue(left, " ", op <> " "), right), state}
+        op = Atom.to_string(fun) <> " "
+        {concat(glue(left, " ", op), nest_by_length(right, op)), state}
       true ->
-        {glue(concat(left, " " <> op), " ", right), state}
+        op = " " <> Atom.to_string(fun)
+        {concat(left, nest(glue(op, " ", right), nesting)), state}
     end
   end
 
@@ -221,14 +232,14 @@ defmodule CodeFormatter do
     with {op, _, [left, right]} <- operand,
          {_, prec} <- Code.Identifier.binary_op(op) do
       {parent_assoc, parent_prec} = Code.Identifier.binary_op(parent_op)
-      operand = binary_op_to_algebra(op, left, right, state, 0)
 
       if parent_prec > prec or
            parent_assoc != side or
-           parent_op in @required_parens_on_binary_operands do
-        concat(concat("(", nest(operand, 1)), ")")
+           (op != parent_op and parent_op in @required_parens_on_binary_operands) do
+        {operand, state} = binary_op_to_algebra(op, left, right, state, 2)
+        {concat(concat("(", nest(operand, 1)), ")"), state}
       else
-        operand
+        binary_op_to_algebra(op, left, right, state, 0)
       end
     else
       _ -> quoted_to_algebra(operand, state)
