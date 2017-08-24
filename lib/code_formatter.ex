@@ -80,10 +80,10 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, meta, [list]}, state) when is_list(list) do
     cond do
       meta[:format] == :list_heredoc ->
-        string = list |> List.to_string |> escape(:none)
+        string = list |> List.to_string |> escape_string(:none)
         {@single_heredoc |> line(string) |> concat(@single_heredoc), state}
       Enum.all?(list, & &1 in 0x0..0xFFFFFF) ->
-        string = list |> List.to_string |> escape(@single_quote)
+        string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
       true ->
         raise "not yet implemented"
@@ -92,10 +92,10 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, meta, [string]}, state) when is_binary(string) do
     if meta[:format] == :bin_heredoc do
-      string = escape(string, :none)
+      string = escape_string(string, :none)
       {@double_heredoc |> line(string) |> concat(@double_heredoc), state}
     else
-      string = escape(string, @double_quote)
+      string = escape_string(string, @double_quote)
       {@double_quote |> concat(string) |> concat(@double_quote), state}
     end
   end
@@ -112,7 +112,11 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
-  # TODO: Add a test that unquote_splicing is not removed from block.
+  defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, fun, [_] = args}]}, state) do
+    {doc, state} = local_to_algebra(:unquote_splicing, fun, args, state)
+    {concat(concat("(", nest(doc, 1)), ")"), state}
+  end
+
   defp quoted_to_algebra({:__block__, _meta, [arg]}, state) do
     quoted_to_algebra(arg, state)
   end
@@ -145,8 +149,6 @@ defmodule CodeFormatter do
   # TODO: Handle @
   # TODO: Handle &
   # TODO: Handle in and not in
-  # TODO: Handle operators that spawn a newline
-  # TODO: Test unary operators properly handle local calls (and how that affects parens usage)
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
@@ -159,7 +161,7 @@ defmodule CodeFormatter do
   # the capture operator (except &INT) also require parens.
   defp wrap_in_parens_if_op(quoted, doc) do
     if op?(quoted) do
-      surround("(", doc, ")", group: :strict)
+      concat(concat("(", nest(doc, 1)), ")")
     else
       doc
     end
@@ -185,7 +187,7 @@ defmodule CodeFormatter do
           Atom.to_string(fun)
         end
 
-      {concat(wrapped_op, wrapped_doc), state}
+      {concat(wrapped_op, nest_by_length(wrapped_doc, wrapped_op)), state}
     else
       _ -> :error
     end
@@ -256,8 +258,9 @@ defmodule CodeFormatter do
     {args_docs, state} = Enum.map_reduce(args, state, &quoted_to_algebra/2)
     inspect_opts = %Inspect.Opts{limit: :infinity}
     fun = Atom.to_string(fun)
+    # TODO: Roll our own surround many
     doc = surround_many("#{fun}(", args_docs, ")", inspect_opts, fn arg, _opts -> arg end, group: :flex)
-    {nest(doc, String.length(fun)), state}
+    {nest_by_length(doc, fun), state}
   end
 
   ## Interpolation
@@ -271,7 +274,7 @@ defmodule CodeFormatter do
   end
 
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) when is_binary(entry) do
-    acc = concat(acc, escape(entry, escape))
+    acc = concat(acc, escape_string(entry, escape))
     interpolation_to_algebra(entries, escape, state, acc, last)
   end
 
@@ -326,7 +329,7 @@ defmodule CodeFormatter do
       type when type in [:callable, :not_callable] ->
         IO.iodata_to_binary [?:, string]
       _ ->
-        IO.iodata_to_binary [?:, ?", escape(string, "\""), ?"]
+        IO.iodata_to_binary [?:, ?", escape_string(string, "\""), ?"]
     end
   end
 
@@ -367,11 +370,11 @@ defmodule CodeFormatter do
     end
   end
 
-  defp escape(string, :none) do
+  defp escape_string(string, :none) do
     insert_line_breaks(string)
   end
 
-  defp escape(string, escape) when is_binary(escape) do
+  defp escape_string(string, escape) when is_binary(escape) do
     string
     |> String.replace(escape, "\\" <> escape)
     |> insert_line_breaks()
@@ -382,5 +385,11 @@ defmodule CodeFormatter do
     |> String.split("\n")
     |> Enum.reverse()
     |> Enum.reduce(&line/2)
+  end
+
+  ## Algebra helpers
+
+  defp nest_by_length(doc, string) do
+    nest(doc, String.length(string))
   end
 end

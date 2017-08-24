@@ -486,12 +486,20 @@ defmodule CodeFormatterTest do
       assert_same "not not var"
     end
 
-    test "splits operand parens on line limit" do
-      bad = "not not(+123_456_789)"
+    test "nests operand according to operator length" do
+      bad = "not foo(bar, baz, bat)"
       good = """
-      not not(
-        +123_456_789
-      )
+      not foo(bar,
+              baz,
+              bat)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "~~~ foo(bar, baz, bat)"
+      good = """
+      ~~~foo(bar,
+             baz,
+             bat)
       """
       assert_format bad, good, @short_length
     end
@@ -504,6 +512,11 @@ defmodule CodeFormatterTest do
 
     test "without arguments doesn't split on line limit" do
       assert_same "very_long_function_name()", @short_length
+    end
+
+    test "removes outer parens except for unquote_splicing/1" do
+      assert_format "(foo())", "foo()"
+      assert_same "(unquote_splicing(123))"
     end
 
     test "with arguments" do
