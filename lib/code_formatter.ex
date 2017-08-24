@@ -123,9 +123,9 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
-  defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, fun, [_] = args}]},
+  defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, _, [_] = args}]},
                          _context, state) do
-    {doc, state} = local_to_algebra(:unquote_splicing, fun, args, state)
+    {doc, state} = local_to_algebra(:unquote_splicing, args, state)
     {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
@@ -149,16 +149,16 @@ defmodule CodeFormatter do
     {Atom.to_string(var), state}
   end
 
-  defp quoted_to_algebra({:@, meta, [arg]}, context, state) do
-    module_attribute_to_algebra(arg, meta, context, state)
+  defp quoted_to_algebra({:@, _, [arg]}, context, state) do
+    module_attribute_to_algebra(arg, context, state)
   end
 
   defp quoted_to_algebra({fun, meta, args}, _context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
-         :error <- maybe_unary_op_to_algebra(fun, meta, args, state),
-         :error <- maybe_binary_op_to_algebra(fun, meta, args, state),
-         do: local_to_algebra(fun, meta, args, state)
+         :error <- maybe_unary_op_to_algebra(fun, args, state),
+         :error <- maybe_binary_op_to_algebra(fun, args, state),
+         do: local_to_algebra(fun, args, state)
   end
 
   ## Operators
@@ -166,33 +166,37 @@ defmodule CodeFormatter do
   # TODO: Handle &
   # TODO: Handle in and not in
 
-  defp maybe_unary_op_to_algebra(fun, _meta, args, state) do
+  defp maybe_unary_op_to_algebra(fun, args, state) do
     with [arg] <- args,
          {_, _} <- Code.Identifier.unary_op(fun) do
-      {doc, state} = quoted_to_algebra(arg, :argument, state)
-
-      # not and ! are nestable, all others are not.
-      wrapped_doc =
-        case arg do
-          {nestable, _, [_]} when fun == nestable and nestable in [:!, :not] -> doc
-          _ -> wrap_in_parens_if_necessary(arg, doc)
-        end
-
-      # not requires a space unless the doc was wrapped.
-      wrapped_op =
-        if fun == :not and wrapped_doc == doc do
-          "not "
-        else
-          Atom.to_string(fun)
-        end
-
-      {concat(wrapped_op, nest_by_length(wrapped_doc, wrapped_op)), state}
+      unary_op_to_algebra(fun, arg, state)
     else
       _ -> :error
     end
   end
 
-  defp maybe_binary_op_to_algebra(fun, _meta, args, state) do
+  defp unary_op_to_algebra(fun, arg, state) do
+    {doc, state} = quoted_to_algebra(arg, :argument, state)
+
+    # not and ! are nestable, all others are not.
+    wrapped_doc =
+      case arg do
+        {nestable, _, [_]} when fun == nestable and nestable in [:!, :not] -> doc
+        _ -> wrap_in_parens_if_necessary(arg, doc)
+      end
+
+    # not requires a space unless the doc was wrapped.
+    wrapped_op =
+      if fun == :not and wrapped_doc == doc do
+        "not "
+      else
+        Atom.to_string(fun)
+      end
+
+    {concat(wrapped_op, nest_by_length(wrapped_doc, wrapped_op)), state}
+  end
+
+  defp maybe_binary_op_to_algebra(fun, args, state) do
     with [left, right] <- args,
          {_, _} <- Code.Identifier.binary_op(fun) do
       {doc, state} = binary_op_to_algebra(fun, left, right, state, nil, 2)
@@ -305,12 +309,11 @@ defmodule CodeFormatter do
 
   ## Module attributes
 
-  defp module_attribute_to_algebra({:__block__, _meta, _args} = block, meta,
-                                   _context, state) do
-    {_, _} = maybe_unary_op_to_algebra(:@, meta, [block], state)
+  defp module_attribute_to_algebra({:__block__, _meta, _args} = block, _context, state) do
+    unary_op_to_algebra(:@, block, state)
   end
 
-  defp module_attribute_to_algebra({name, _meta, value_or_context} = arg, meta,
+  defp module_attribute_to_algebra({name, _meta, value_or_context} = arg,
                                    context, state) do
     case {Code.Identifier.classify(name), value_or_context} do
       {:callable_local, ctx} when is_atom(ctx) ->
@@ -326,7 +329,7 @@ defmodule CodeFormatter do
             {space(attribute, value_doc), state}
         end
       _other ->
-        {_, _} = maybe_unary_op_to_algebra(:@, meta, [arg], state)
+        unary_op_to_algebra(:@, arg, state)
     end
   end
 
@@ -338,11 +341,11 @@ defmodule CodeFormatter do
 
   ## Local calls
 
-  defp local_to_algebra(fun, _meta, [], state) do
+  defp local_to_algebra(fun, [], state) do
     {Atom.to_string(fun) <> "()", state}
   end
 
-  defp local_to_algebra(fun, _meta, args, state) do
+  defp local_to_algebra(fun, args, state) do
     fun = Atom.to_string(fun)
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {surround("#{fun}(", nest_by_length(args_doc, fun), ")"), state}
