@@ -192,8 +192,12 @@ defmodule CodeFormatter do
 
   ## Local calls
 
-  defp local_to_algebra(_fun, _meta, _args, _state) do
-    raise "not yet implemented"
+  defp local_to_algebra(fun, _meta, args, state) do
+    {args_docs, state} = Enum.map_reduce(args, state, &quoted_to_algebra/2)
+    inspect_opts = %Inspect.Opts{limit: :infinity}
+    fun = Atom.to_string(fun)
+    doc = surround_many("#{fun}(", args_docs, ")", inspect_opts, fn arg, _opts -> arg end, group: :flex)
+    {nest(doc, String.length(fun)), state}
   end
 
   ## Interpolation

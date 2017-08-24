@@ -496,4 +496,29 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
   end
+
+  describe "local calls" do
+    test "without arguments" do
+      assert_format "foo( )", "foo()"
+    end
+
+    test "without arguments doesn't split on line limit" do
+      assert_same "very_long_function_name()", @short_length
+    end
+
+    test "with arguments" do
+      assert_format "foo( :one ,:two,\n   :three)", "foo(:one, :two, :three)"
+    end
+
+    test "with arguments splits on line limit" do
+      bad = """
+      fun(x, y, z)
+      """
+      good = """
+      fun(x, y,
+          z)
+      """
+      assert_format bad, good, @short_length
+    end
+  end
 end
