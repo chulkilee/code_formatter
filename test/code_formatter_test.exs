@@ -521,4 +521,47 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
   end
+
+  describe "binary operators without space" do
+    test "formats without spaces" do
+      assert_format "1 .. 2", "1..2"
+    end
+
+    test "never breaks" do
+      assert_same "123_456_789..987_654_321", @short_length
+    end
+  end
+
+  # TODO: Test what happens with a local call on the right side of the operator.
+  # Who is responsible for the group?
+
+  describe "binary operators with preceding new line" do
+    test "formats with spaces" do
+      assert_format "1|>2", "1 |> 2"
+    end
+
+    test "breaks into new line" do
+      bad = "123_456_789 |> 987_654_321"
+      good = """
+      123_456_789
+      |> 987_654_321
+      """
+      assert_format bad, good, @short_length
+    end
+  end
+
+  describe "binary operators with following new line" do
+    test "formats with spaces" do
+      assert_format "1++2", "1 ++ 2"
+    end
+
+    test "breaks into new line" do
+      bad = "123_456_789 ++ 987_654_321"
+      good = """
+      123_456_789 ++
+      987_654_321
+      """
+      assert_format bad, good, @short_length
+    end
+  end
 end

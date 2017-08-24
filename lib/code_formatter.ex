@@ -7,6 +7,16 @@ defmodule CodeFormatter do
   @single_quote "'"
   @single_heredoc "'''"
 
+  # Operators that do not have space between operands
+  @no_space_binary_operators [:..]
+
+  # Operators that start on the next line in case of breaks
+  @new_line_before_binary_operators [:|, :when, :|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
+
+  # Operators that always require parens on operands when they are the parent
+  @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
+                                       :^^^, :in, :++, :--, :.., :<>]
+
   @doc """
   Formats the given code `string`.
   """
@@ -102,6 +112,7 @@ defmodule CodeFormatter do
     {float_to_algebra(Keyword.fetch!(meta, :original)), state}
   end
 
+  # TODO: Add a test that unquote_splicing is not removed from block.
   defp quoted_to_algebra({:__block__, _meta, [arg]}, state) do
     quoted_to_algebra(arg, state)
   end
@@ -125,10 +136,17 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({fun, meta, args}, state) when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
          :error <- maybe_unary_op_to_algebra(fun, meta, args, state),
+         :error <- maybe_binary_op_to_algebra(fun, meta, args, state),
          do: local_to_algebra(fun, meta, args, state)
   end
 
   ## Operators
+
+  # TODO: Handle @
+  # TODO: Handle &
+  # TODO: Handle in and not in
+  # TODO: Handle operators that spawn a newline
+  # TODO: Test unary operators properly handle local calls (and how that affects parens usage)
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
@@ -137,8 +155,8 @@ defmodule CodeFormatter do
   end
 
   # TODO: We will likely need to generalize this to
-  # wrap_in parens_if_necessary because do/end blocks
-  # also require parens.
+  # wrap_in_parens_if_necessary because do/end blocks and
+  # the capture operator (except &INT) also require parens.
   defp wrap_in_parens_if_op(quoted, doc) do
     if op?(quoted) do
       surround("(", doc, ")", group: :strict)
@@ -170,6 +188,48 @@ defmodule CodeFormatter do
       {concat(wrapped_op, wrapped_doc), state}
     else
       _ -> :error
+    end
+  end
+
+  defp maybe_binary_op_to_algebra(fun, _meta, args, state) do
+    with [left, right] <- args,
+         {_, _} <- Code.Identifier.binary_op(fun) do
+      binary_op_to_algebra(fun, left, right, state, 2)
+    else
+      _ -> :error
+    end
+  end
+
+  defp binary_op_to_algebra(fun, left, right, state, _nesting) do
+    {left, state} = binary_operand_to_algebra(left, state, fun, :left)
+    {right, state} = binary_operand_to_algebra(right, state, fun, :right)
+    op = Atom.to_string(fun)
+
+    cond do
+      fun in @no_space_binary_operators ->
+        {concat(concat(left, op), right), state}
+      fun in @new_line_before_binary_operators ->
+        {concat(glue(left, " ", op <> " "), right), state}
+      true ->
+        {glue(concat(left, " " <> op), " ", right), state}
+    end
+  end
+
+  defp binary_operand_to_algebra(operand, state, parent_op, side) do
+    with {op, _, [left, right]} <- operand,
+         {_, prec} <- Code.Identifier.binary_op(op) do
+      {parent_assoc, parent_prec} = Code.Identifier.binary_op(parent_op)
+      operand = binary_op_to_algebra(op, left, right, state, 0)
+
+      if parent_prec > prec or
+           parent_assoc != side or
+           parent_op in @required_parens_on_binary_operands do
+        concat(concat("(", nest(operand, 1)), ")")
+      else
+        operand
+      end
+    else
+      _ -> quoted_to_algebra(operand, state)
     end
   end
 
