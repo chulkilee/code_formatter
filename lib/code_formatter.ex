@@ -265,13 +265,21 @@ defmodule CodeFormatter do
 
   ## Local calls
 
-  defp local_to_algebra(fun, _meta, args, state) do
-    {args_docs, state} = Enum.map_reduce(args, state, &quoted_to_algebra/2)
-    inspect_opts = %Inspect.Opts{limit: :infinity}
+  defp local_to_algebra(fun, _meta, [], state) do
+    {Atom.to_string(fun) <> "()", state}
+  end
+
+  defp local_to_algebra(fun, _meta, [first_arg | other_args], state) do
     fun = Atom.to_string(fun)
-    # TODO: Roll our own surround many
-    doc = surround_many("#{fun}(", args_docs, ")", inspect_opts, fn arg, _opts -> arg end, group: :flex)
-    {nest_by_length(doc, fun), state}
+    {args_doc, state} = quoted_to_algebra(first_arg, state)
+
+    {args_doc, state} =
+      Enum.reduce(other_args, {args_doc, state}, fn arg, {doc_acc, state_acc} ->
+        {arg_doc, state_acc} = quoted_to_algebra(arg, state_acc)
+        {glue(concat(doc_acc, ","), arg_doc), state_acc}
+      end)
+
+    {surround("#{fun}(", nest(args_doc, String.length(fun)), ")"), state}
   end
 
   ## Interpolation
