@@ -366,6 +366,10 @@ defmodule CodeFormatter do
 
   ## Local calls
 
+  defp local_to_algebra(fun, [], state) when is_atom(fun) do
+    {"#{fun}()", state}
+  end
+
   defp local_to_algebra(fun, args, state) when is_atom(fun) do
     fun = Atom.to_string(fun)
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
