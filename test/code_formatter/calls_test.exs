@@ -62,4 +62,56 @@ defmodule CodeFormatter.CallsTest do
       assert_same "Mod.func()", @short_length
     end
   end
+
+  describe "anonymous function calls" do
+    test "without arguments" do
+      assert_format "foo . ()", "foo.()"
+      assert_format "(foo.()).().()", "foo.().().()"
+      assert_same "@foo.()"
+      assert_same "(1 + 1).()"
+      assert_same ":foo.()"
+    end
+
+    test "with arguments" do
+      assert_format "foo . (1, 2  ,  3 )", "foo.(1, 2, 3)"
+      assert_format "foo . (1, 2 ).(3,4)", "foo.(1, 2).(3, 4)"
+      assert_same "@foo.(:one, :two)"
+      assert_same "foo.(1 + 1).(hello)"
+    end
+
+    test "splits on dot on line limit" do
+      bad = "my_function.()"
+      good = """
+      my_function.
+        ()
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "splits on arguments on line limit" do
+      bad = """
+      my_function.(1, 2, 3)
+      """
+      good = """
+      my_function.
+        (
+          1,
+          2,
+          3
+        )
+      """
+      assert_format bad, good, @short_length
+
+      bad = """
+      my_function.(1, 2).f(3, 4).(5, 6)
+      """
+      good = """
+      my_function.
+        (1, 2).
+        f(3, 4).
+        (5, 6)
+      """
+      assert_format bad, good, @short_length
+    end
+  end
 end

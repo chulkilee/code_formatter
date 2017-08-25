@@ -85,6 +85,10 @@ defmodule CodeFormatter do
     remote_to_algebra(quoted, state)
   end
 
+  defp quoted_to_algebra({{:., _, [_]}, _, _} = quoted, _context, state) do
+    remote_to_algebra(quoted, state)
+  end
+
   defp quoted_to_algebra({:{}, _, args}, _context, state) do
     tuple_to_algebra(args, state)
   end
@@ -398,23 +402,28 @@ defmodule CodeFormatter do
     end
   end
 
-  ## Remote calls
+  ## Remote calls (and anonymous function calls)
 
   # expression.function(arguments)
-  defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state) when is_atom(fun) do
-    remote_to_algebra(target, fun, args, state, 2)
+  defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state)
+       when is_atom(fun) do
+    fun_doc = Code.Identifier.inspect_as_function(fun)
+    remote_to_algebra(target, fun_doc, args, state, 2)
   end
 
-  defp remote_to_algebra(target, fun, args, state, nesting) do
+  defp remote_to_algebra({{:., _, [target]}, _, args}, state) do
+    remote_to_algebra(target, empty(), args, state, 2)
+  end
+
+  defp remote_to_algebra(target, fun_doc, args, state, nesting) do
     {target_doc, state} = remote_target_to_algebra(target, state)
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
-    fun = Code.Identifier.inspect_as_function(fun)
 
     call_doc =
       if args == [] do
-        "#{fun}()"
+        concat(fun_doc, "()")
       else
-        surround("#{fun}(", args_doc, ")")
+        surround(concat(fun_doc, "("), args_doc, ")")
       end
 
     doc = nest(glue(concat(target_doc, "."), "", call_doc), nesting)
@@ -422,8 +431,14 @@ defmodule CodeFormatter do
     {doc, state}
   end
 
-  defp remote_target_to_algebra({{:., _, [target, fun]}, _, args}, state) when is_atom(fun) do
-    remote_to_algebra(target, fun, args, state, 0)
+  defp remote_target_to_algebra({{:., _, [target, fun]}, _, args}, state)
+       when is_atom(fun) do
+    fun_doc = Code.Identifier.inspect_as_function(fun)
+    remote_to_algebra(target, fun_doc, args, state, 0)
+  end
+
+  defp remote_target_to_algebra({{:., _, [target]}, _, args}, state) do
+    remote_to_algebra(target, empty(), args, state, 0)
   end
 
   defp remote_target_to_algebra(quoted, state) do
