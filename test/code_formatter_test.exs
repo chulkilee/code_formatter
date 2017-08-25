@@ -923,8 +923,56 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
-    test "with multiple of the same entry" do
+    test "with multiple of the same entry and left associative" do
+      assert_same "foo == bar == baz"
+
+      bad = "a == b == c"
+      good = """
+      a == b ==
+        c
+      """
+      assert_format bad, good, @short_length
+
+      bad = "(a == (b == c))"
+      good = """
+      a ==
+        (b == c)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo == bar == baz"
+      good = """
+      foo ==
+        bar ==
+        baz
+      """
+      assert_format bad, good, @short_length
+
+      bad = "(foo == (bar == baz))"
+      good = """
+      foo ==
+        (bar ==
+           baz)
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple of the same entry and right associative" do
       assert_same "foo ++ bar ++ baz"
+
+      bad = "a ++ b ++ c"
+      good = """
+      a ++
+        b ++ c
+      """
+      assert_format bad, good, @short_length
+
+      bad = "((a ++ b) ++ c)"
+      good = """
+      (a ++
+         b) ++ c
+      """
+      assert_format bad, good, @short_length
 
       bad = "foo ++ bar ++ baz"
       good = """
@@ -943,7 +991,7 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
-    test "with multiple entries on optional parens" do
+    test "with precedence" do
       assert_format "(a + b) == (c + d)", "a + b == c + d"
       assert_format "a + (b == c) + d", "a + (b == c) + d"
 
@@ -999,7 +1047,7 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @medium_length
     end
 
-    test "with multiple entries and required parens" do
+    test "with required parens" do
       assert_same "(a |> b) ++ (c |> d)"
       assert_format "a + b |> c + d", "(a + b) |> (c + d)"
       assert_format "a ++ b |> c ++ d", "(a ++ b) |> (c ++ d)"
