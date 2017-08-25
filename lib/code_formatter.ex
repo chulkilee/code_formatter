@@ -163,6 +163,16 @@ defmodule CodeFormatter do
     {Atom.to_string(var), state}
   end
 
+  # &1
+  # &local(&1)
+  # &local/1
+  # &Mod.remote/1
+  # & &1
+  # & &1 + &2
+  defp quoted_to_algebra({:&, _, [arg]}, _context, state) do
+    capture_to_algebra(arg, state)
+  end
+
   defp quoted_to_algebra({:@, _, [arg]}, context, state) do
     module_attribute_to_algebra(arg, context, state)
   end
@@ -182,8 +192,6 @@ defmodule CodeFormatter do
   end
 
   ## Operators
-
-  # TODO: Handle &
 
   defp maybe_unary_op_to_algebra(fun, args, state) do
     with [arg] <- args,
@@ -206,7 +214,7 @@ defmodule CodeFormatter do
 
     # not requires a space unless the doc was wrapped in parens.
     op_string =
-      if op in [:&, :not] and wrapped_doc == doc do
+      if op == :not and wrapped_doc == doc do
         "not "
       else
         Atom.to_string(op)
@@ -325,17 +333,6 @@ defmodule CodeFormatter do
     end
   end
 
-  defp operator?(quoted) do
-    case quoted do
-      {op, _, [_, _]} when is_atom(op) ->
-        Code.Identifier.binary_op(op) != :error
-      {op, _, [_]} when is_atom(op) ->
-        Code.Identifier.unary_op(op) != :error
-      _ ->
-        false
-    end
-  end
-
   ## Module attributes
 
   # @Foo
@@ -368,6 +365,37 @@ defmodule CodeFormatter do
   # @(foo.bar())
   defp module_attribute_to_algebra(quoted, _context, state) do
     unary_op_to_algebra(:@, quoted, state)
+  end
+
+  ## Capture operator
+
+  defp capture_to_algebra(integer, state) when is_integer(integer) do
+    {"&" <> Integer.to_string(integer), state}
+  end
+
+  defp capture_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, state)
+      when is_atom(name) and is_integer(arity) do
+    {doc, state} = remote_target_to_algebra(target, state)
+    name = Code.Identifier.inspect_as_function(name)
+    {"&" |> concat(doc) |> nest(3) |> concat(".#{name}/#{arity}"), state}
+  end
+
+  defp capture_to_algebra({:/, _, [{name, _, context}, {:__block__, _, [arity]}]}, state)
+       when is_atom(name) and is_atom(context) and is_integer(arity) do
+    {"&#{name}/#{arity}", state}
+  end
+
+  defp capture_to_algebra(arg, state) do
+    {doc, state} = quoted_to_algebra(arg, :argument, state)
+
+    cond do
+      binary_operator?(arg) ->
+        {concat("& ", doc), state}
+      doc |> Inspect.Algebra.format(:infinity) |> IO.iodata_to_binary() |> String.starts_with?("&") ->
+        {concat("& ", doc), state}
+      true ->
+        {concat("&", doc), state}
+    end
   end
 
   ## Remote calls
@@ -647,8 +675,30 @@ defmodule CodeFormatter do
   end
   defp module_attribute_read?(_), do: false
 
-  defp integer_capture?({:&, _, [{:__block__, _, [integer]}]}) when is_integer(integer), do: true
+  defp integer_capture?({:&, _, [integer]}) when is_integer(integer), do: true
   defp integer_capture?(_), do: false
+
+  defp binary_operator?(quoted) do
+    case quoted do
+      {op, _, [_, _]} when is_atom(op) ->
+        Code.Identifier.binary_op(op) != :error
+      _ ->
+        false
+    end
+  end
+
+  defp unary_operator?(quoted) do
+    case quoted do
+      {op, _, [_]} when is_atom(op) ->
+        Code.Identifier.unary_op(op) != :error
+      _ ->
+        false
+    end
+  end
+
+  defp operator?(quoted) do
+    unary_operator?(quoted) or binary_operator?(quoted)
+  end
 
   ## Algebra helpers
 

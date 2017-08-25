@@ -564,4 +564,52 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "@(Foo.Bar).Baz", "(@(Foo.Bar)).Baz"
     end
   end
+
+  describe "capture" do
+    test "with integers" do
+      assert_same "&1"
+      assert_format "&(&1)", "& &1"
+      assert_format "&(&1.foo)", "& &1.foo()"
+    end
+
+    test "with operators" do
+      assert_format "&(+1)", "&+1"
+      assert_format "&(a ++ b)", "& a ++ b"
+      assert_format "&(&1 && &2)", "& &1 && &2"
+    end
+
+    test "with call expressions" do
+      assert_format "& local(&1, &2)", "&local(&1, &2)"
+    end
+
+    test "precedence when combined with calls" do
+      assert_same "(&Foo).Bar"
+      assert_format "&(Foo).Bar", "&Foo.Bar"
+      assert_format "&(Foo.Bar).Baz", "&Foo.Bar.Baz"
+    end
+
+    test "local/arity" do
+      assert_format "&(foo/1)", "&foo/1"
+      assert_format "&(foo/bar)", "& foo / bar"
+    end
+
+    test "Module.remote/arity" do
+      assert_format "&(Mod.foo/1)", "&Mod.foo/1"
+      assert_format "&(Mod.foo/bar)", "& Mod.foo() / bar"
+
+      # This is "invalid" as a special form but we don't
+      # have enough knowledge to know that, so let's just
+      # make sure we format it properly with proper wrapping.
+      assert_same "&(1 + 2).foo/1"
+
+      bad = """
+      &my_function.foo().bar()/3
+      """
+      good = """
+      &my_function.
+         foo().bar/3
+      """
+      assert_format bad, good, @short_length
+    end
+  end
 end
