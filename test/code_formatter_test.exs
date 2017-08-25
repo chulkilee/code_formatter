@@ -505,6 +505,10 @@ defmodule CodeFormatterTest do
       assert_format "[ 1 , 2,3, 4 ]", "[1, 2, 3, 4]"
     end
 
+    test "with tail" do
+      assert_format "[1,2,3|4]", "[1, 2, 3 | 4]"
+    end
+
     test "are flex on line limit" do
       bad = """
       [11, 22, 33, 44]
@@ -512,6 +516,24 @@ defmodule CodeFormatterTest do
       good = """
       [11, 22,
        33, 44]
+      """
+      assert_format bad, good, @short_length
+
+      bad = """
+      [11, 22, 33 | 44]
+      """
+      good = """
+      [11, 22,
+       33 | 44]
+      """
+      assert_format bad, good, @short_length
+
+      bad = """
+      [1, 2, 3 | 4]
+      """
+      good = """
+      [1, 2,
+       3 | 4]
       """
       assert_format bad, good, @short_length
     end
