@@ -313,7 +313,7 @@ defmodule CodeFormatterTest do
       assert_same to_string(~S'''
       """
       one
-      #{"two two"}
+      #{"two"}
       three
       """
       '''), @short_length
@@ -385,7 +385,7 @@ defmodule CodeFormatterTest do
       assert_same ~S"""
       '''
       one
-      #{"two two"}
+      #{"two"}
       three
       '''
       """, @short_length
@@ -1103,14 +1103,28 @@ defmodule CodeFormatterTest do
       } = var
       """
       assert_format bad, good, @short_length
+
+      bad = "{one, two, three} = foo(bar, baz)"
+      good = """
+      {one, two, three} =
+        foo(bar, baz)
+      """
+      assert_format bad, good, @medium_length
     end
 
-    @tag :skip
     test "with heredoc" do
-      assert_same """
-      var = '''
-      one
-      '''
+      assert_same ~S"""
+      var =
+        '''
+        one
+        '''
+      """, @short_length
+
+      assert_same ~S"""
+      var =
+        '''
+        #{one}
+        '''
       """, @short_length
     end
   end

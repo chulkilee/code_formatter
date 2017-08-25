@@ -53,8 +53,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
-        {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), @double_heredoc)
-        {line(@double_heredoc, doc), state}
+        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line()), @double_heredoc)
       true ->
         interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
@@ -66,8 +65,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         remote_to_algebra(quoted, state)
       meta[:format] == :list_heredoc ->
-        {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), @single_heredoc)
-        {line(@single_heredoc, doc), state}
+        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line()), @single_heredoc)
       true ->
         interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
@@ -394,12 +392,12 @@ defmodule CodeFormatter do
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
     {doc, state} = quoted_to_algebra(quoted, :block, state)
-    doc = glue(nest(glue("\#{", "", doc), 2), "", "}")
+    doc = group(glue(nest(glue("\#{", "", doc), 2), "", "}"), :strict)
     interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
 
   defp interpolation_to_algebra([], _escape, state, acc, last) do
-    {group(concat(acc, last), :strict), state}
+    {concat(acc, last), state}
   end
 
   ## Sigils
@@ -411,12 +409,16 @@ defmodule CodeFormatter do
         acc = <<?~, name, opening_terminator::binary>>
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
-          {doc, state} = interpolation_to_algebra(entries, :none, state, empty(), opening_terminator)
-          {line(acc, doc), state}
+          interpolation_to_algebra(entries, :none, state, concat(acc, line()), opening_terminator)
         else
           closing_terminator = closing_sigil_terminator(opening_terminator)
-          {doc, state} = interpolation_to_algebra(entries, closing_terminator, state, acc, closing_terminator)
-          {concat(doc, List.to_string(modifiers)), state}
+          interpolation_to_algebra(
+            entries,
+            closing_terminator,
+            state,
+            acc,
+            concat(closing_terminator, List.to_string(modifiers))
+          )
         end
       _ ->
         :error
