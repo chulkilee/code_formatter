@@ -870,6 +870,14 @@ defmodule CodeFormatterTest do
         baz
       """
       assert_format bad, good, @short_length
+
+      bad = "((foo ++ bar) ++ baz)"
+      good = """
+      (foo ++
+         bar) ++
+        baz
+      """
+      assert_format bad, good, @short_length
     end
 
     test "with multiple entries on optional parens" do
@@ -892,6 +900,13 @@ defmodule CodeFormatterTest do
       """
       assert_format bad, good, @short_length
 
+      bad = "(one + two) == (three + four)"
+      good = """
+      one + two ==
+        three + four
+      """
+      assert_format bad, good, @medium_length
+
       bad = "one * (two + three) * four"
       good = """
       one *
@@ -903,8 +918,20 @@ defmodule CodeFormatterTest do
       bad = "one * (two + three + four) * five"
       good = """
       one *
-        (two + three +
+        (two +
+           three +
            four) * five
+      """
+      assert_format bad, good, @medium_length
+
+      bad = "var = one * (two + three + four) * five"
+      good = """
+      var =
+        one *
+          (two +
+             three +
+             four) *
+          five
       """
       assert_format bad, good, @medium_length
     end
@@ -923,6 +950,15 @@ defmodule CodeFormatterTest do
       when b and
              c
       when d
+      """
+      assert_format bad, good, @medium_length
+
+      bad = "a when b and c + d + e + f when g"
+      good = """
+      a
+      when b and
+             c + d + e + f
+      when g
       """
       assert_format bad, good, @medium_length
     end

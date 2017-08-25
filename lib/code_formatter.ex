@@ -207,8 +207,7 @@ defmodule CodeFormatter do
   defp maybe_binary_op_to_algebra(fun, args, state) do
     with [left, right] <- args,
          {_, _} <- Code.Identifier.binary_op(fun) do
-      {doc, state} = binary_op_to_algebra(fun, left, right, state, nil, 2)
-      {group(doc, :flex), state}
+      binary_op_to_algebra(fun, left, right, state, nil, 2)
     else
       _ -> :error
     end
@@ -269,7 +268,7 @@ defmodule CodeFormatter do
           if op_info == parent_info, do: doc, else: group(doc, :strict)
         true ->
           op_string = " " <> Atom.to_string(op)
-          concat(left, nest(glue(op_string, right), nesting))
+          concat(left, nest(glue(op_string, group(right, :strict)), nesting))
       end
 
     {doc, state}
@@ -281,23 +280,24 @@ defmodule CodeFormatter do
          {_assoc, prec} <- op_info do
       {parent_assoc, parent_prec} = parent_info
 
-      parens? =
-        # If the operators have different precedence and the parent
-        # requires parens, then we alwaus add parens. Otherwise we
-        # rely on the precedence rules.
-        cond do
-          parent_prec != prec and parent_op in @required_parens_on_binary_operands -> true
-          parent_prec < prec -> false
-          parent_prec > prec -> true
-          parent_assoc == side -> false
-          true -> true
-        end
+      cond do
+        # If the operator has the same precedence as the parent and is on
+        # the correct side, we respect the nesting rule to avoid multiple
+        # nestings.
+        parent_prec == prec and parent_assoc == side ->
+          binary_op_to_algebra(op, left, right, state, op_info, nesting)
 
-      if parens? do
-        {operand, state} = binary_op_to_algebra(op, left, right, state, op_info, 2)
-        {group(concat(concat("(", nest(group(operand, :flex), 1)), ")"), :strict), state}
-      else
-        binary_op_to_algebra(op, left, right, state, op_info, nesting)
+        # If the parent requires parens or the precedence is inverted or
+        # it is in the wrong side, then we *need* parenthesis.
+        parent_op in @required_parens_on_binary_operands or
+            parent_prec > prec or
+            parent_prec == prec and parent_assoc != side ->
+          {operand, state} = binary_op_to_algebra(op, left, right, state, op_info, 2)
+          {concat(concat("(", nest(operand, 1)), ")"), state}
+
+        # Otherwise, we rely on precedence but also nest.
+        true ->
+          binary_op_to_algebra(op, left, right, state, op_info, 2)
       end
     else
       _ -> quoted_to_algebra(operand, :argument, state)
