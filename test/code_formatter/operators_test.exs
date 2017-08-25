@@ -595,6 +595,10 @@ defmodule CodeFormatter.OperatorsTest do
 
     test "Module.remote/arity" do
       assert_format "&(Mod.foo/1)", "&Mod.foo/1"
+      assert_format "&(Mod.++/1)", "&Mod.++/1"
+      assert_format ~s[&(Mod."foo bar"/1)], ~s[&Mod."foo bar"/1]
+
+      # Invalid
       assert_format "&(Mod.foo/bar)", "& Mod.foo() / bar"
 
       # This is "invalid" as a special form but we don't
