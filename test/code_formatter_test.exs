@@ -466,7 +466,8 @@ defmodule CodeFormatterTest do
 
   describe "bitstrings" do
     test "without arguments" do
-      assert_format "<<>>", "<<>>"
+      assert_format "<< >>", "<<>>"
+      assert_format "<<\n>>", "<<>>"
     end
 
     test "with arguments" do
