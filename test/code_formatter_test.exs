@@ -611,8 +611,9 @@ defmodule CodeFormatterTest do
       assert_format "!+1", "!(+1)"
       assert_format "+ +1", "+(+1)"
       assert_format "not +1", "not(+1)"
-      assert_format "not !1", "not(!1)"
       assert_format "!not 1", "!(not 1)"
+      assert_format "not !1", "not(!1)"
+      assert_format "not (!1)", "not(!1)"
     end
 
     test "does not wrap operand if it is a nestable operator" do
@@ -694,6 +695,12 @@ defmodule CodeFormatterTest do
 
     test "never breaks" do
       assert_same "123_456_789 in 987_654_321", @short_length
+    end
+
+    test "not in" do
+      assert_format "not(foo in bar)", "foo not in bar"
+      assert_same "(not foo) in bar"
+      assert_same "(!foo) in bar"
     end
   end
 

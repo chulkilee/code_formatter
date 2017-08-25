@@ -163,6 +163,10 @@ defmodule CodeFormatter do
     module_attribute_to_algebra(arg, context, state)
   end
 
+  defp quoted_to_algebra({:not, _, [{:in, _, [left, right]}]}, _context, state) do
+    binary_op_to_algebra(:in, "not in", left, right, state, nil, 2)
+  end
+
   defp quoted_to_algebra({fun, meta, args}, _context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
@@ -209,7 +213,7 @@ defmodule CodeFormatter do
   defp maybe_binary_op_to_algebra(fun, args, state) do
     with [left, right] <- args,
          {_, _} <- Code.Identifier.binary_op(fun) do
-      binary_op_to_algebra(fun, left, right, state, nil, 2)
+      binary_op_to_algebra(fun, Atom.to_string(fun), left, right, state, nil, 2)
     else
       _ -> :error
     end
@@ -229,25 +233,24 @@ defmodule CodeFormatter do
   # Cases 3 and 4 are the complex ones, as it requires passing the
   # strict or flex mode around.
 
-  defp binary_op_to_algebra(op, left_quoted, right_quoted, state, parent_info, nesting) do
+  defp binary_op_to_algebra(op, op_string, left_arg, right_arg, state, parent_info, nesting) do
     op_info = Code.Identifier.binary_op(op)
-    {left, state} = binary_operand_to_algebra(left_quoted, state, op, op_info, :left, 2)
-    {right, state} = binary_operand_to_algebra(right_quoted, state, op, op_info, :right, 0)
+    {left, state} = binary_operand_to_algebra(left_arg, state, op, op_info, :left, 2)
+    {right, state} = binary_operand_to_algebra(right_arg, state, op, op_info, :right, 0)
 
     doc =
       cond do
         op in @no_space_binary_operators ->
-          op_string = Atom.to_string(op)
           concat(concat(left, op_string), right)
         op in @no_newline_binary_operators ->
-          op_string = " " <> Atom.to_string(op) <> " "
+          op_string = " " <> op_string <> " "
           concat(concat(left, op_string), right)
         op in @left_new_line_before_binary_operators ->
-          op_string = Atom.to_string(op) <> " "
+          op_string = op_string <> " "
           doc = concat(glue(left, op_string), nest_by_length(right, op_string))
           if op_info == parent_info, do: doc, else: group(doc, :strict)
         op in @right_new_line_before_binary_operators ->
-          op_string = Atom.to_string(op) <> " "
+          op_string = op_string <> " "
 
           # If the parent is of the same type (computed via same precedence),
           # we need to nest the left side because of the associativity.
@@ -261,7 +264,7 @@ defmodule CodeFormatter do
           # If the right side is of the same type, we do the nesting above
           # on the left side later on.
           right =
-            case right_quoted do
+            case right_arg do
               {^op, _, [_, _]} -> right
               _ -> nest_by_length(right, op_string)
             end
@@ -269,11 +272,19 @@ defmodule CodeFormatter do
           doc = concat(glue(left, op_string), right)
           if op_info == parent_info, do: doc, else: group(doc, :strict)
         true ->
-          op_string = " " <> Atom.to_string(op)
+          op_string = " " <> op_string
           concat(left, nest(glue(op_string, group(right, :strict)), nesting))
       end
 
     {doc, state}
+  end
+
+  # TODO: We can remove this workaround once we remove
+  # ?rearrange_uop from the parser in Elixir v2.0.
+  defp binary_operand_to_algebra({:__block__, _, [{op, _, [arg]}]}, state, :in,
+                                 _parent_info, :left, _nesting) when op in [:not, :!] do
+    {doc, state} = unary_op_to_algebra(op, arg, state)
+    {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
   defp binary_operand_to_algebra(operand, state, parent_op, parent_info, side, nesting) do
@@ -281,25 +292,26 @@ defmodule CodeFormatter do
          op_info = Code.Identifier.binary_op(op),
          {_assoc, prec} <- op_info do
       {parent_assoc, parent_prec} = parent_info
+      op_string = Atom.to_string(op)
 
       cond do
         # If the operator has the same precedence as the parent and is on
         # the correct side, we respect the nesting rule to avoid multiple
         # nestings.
         parent_prec == prec and parent_assoc == side ->
-          binary_op_to_algebra(op, left, right, state, op_info, nesting)
+          binary_op_to_algebra(op, op_string, left, right, state, op_info, nesting)
 
         # If the parent requires parens or the precedence is inverted or
         # it is in the wrong side, then we *need* parenthesis.
         parent_op in @required_parens_on_binary_operands or
             parent_prec > prec or
             parent_prec == prec and parent_assoc != side ->
-          {operand, state} = binary_op_to_algebra(op, left, right, state, op_info, 2)
+          {operand, state} = binary_op_to_algebra(op, op_string, left, right, state, op_info, 2)
           {concat(concat("(", nest(operand, 1)), ")"), state}
 
         # Otherwise, we rely on precedence but also nest.
         true ->
-          binary_op_to_algebra(op, left, right, state, op_info, 2)
+          binary_op_to_algebra(op, op_string, left, right, state, op_info, 2)
       end
     else
       _ -> quoted_to_algebra(operand, :argument, state)
