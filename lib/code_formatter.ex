@@ -83,6 +83,14 @@ defmodule CodeFormatter do
     end
   end
 
+  defp quoted_to_algebra({:{}, _, args}, _context, state) do
+    tuple_to_algebra(args, state)
+  end
+
+  defp quoted_to_algebra({:__block__, _, [{left, right}]}, _context, state) do
+    tuple_to_algebra([left, right], state)
+  end
+
   defp quoted_to_algebra({:__block__, meta, [list]}, _context, state)
        when is_list(list) do
     case meta[:format] do
@@ -448,6 +456,15 @@ defmodule CodeFormatter do
   end
 
   ## Literals
+
+  defp tuple_to_algebra([], state) do
+    {"{}", state}
+  end
+
+  defp tuple_to_algebra(args, state) do
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {surround("{", args_doc, "}"), state}
+  end
 
   defp atom_to_algebra(atom) when atom in [nil, true, false] do
     Atom.to_string(atom)

@@ -494,6 +494,8 @@ defmodule CodeFormatterTest do
   end
 
   describe "lists" do
+    # TODO: Test list that finishes with keywords entries
+
     test "empty" do
       assert_format "[ ]", "[]"
       assert_format "[\n]", "[]"
@@ -517,6 +519,28 @@ defmodule CodeFormatterTest do
     test "removes trailing comma" do
       assert_format "[1,]", "[1]"
       assert_format "[1, 2, 3,]", "[1, 2, 3]"
+    end
+  end
+
+  describe "tuples" do
+    # TODO: Test tuple with keywords as last element
+
+    test "without arguments" do
+      assert_format "{ }", "{}"
+    end
+
+    test "with arguments" do
+      assert_format "{1,2}", "{1, 2}"
+      assert_format "{1,2,3}", "{1, 2, 3}"
+    end
+
+    test "is flex on line limits" do
+      assert_format "{1, 2, 3, 4}", "{1, 2, 3,\n 4}", @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "{1,}", "{1}"
+      assert_format "{1, 2, 3,}", "{1, 2, 3}"
     end
   end
 
