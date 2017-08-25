@@ -33,7 +33,6 @@ defmodule CodeFormatter.CallsTest do
       assert_same ~S[foo."bar baz"(1, 2)]
     end
 
-    @tag :skip
     test "splits on arguments and dot on line limit" do
       bad = """
       MyModule.Foo.bar(:one, :two, :three)
