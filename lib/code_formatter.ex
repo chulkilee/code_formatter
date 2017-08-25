@@ -15,7 +15,7 @@ defmodule CodeFormatter do
 
   # Operators that start on the next line in case of breaks
   @left_new_line_before_binary_operators [:|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
-  @right_new_line_before_binary_operators [:|, :when]
+  @right_new_line_before_binary_operators [:|]
 
   # Operators that always require parens on operands when they are the parent
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
@@ -163,6 +163,8 @@ defmodule CodeFormatter do
     module_attribute_to_algebra(arg, context, state)
   end
 
+  # not(left in right)
+  # left not in right
   defp quoted_to_algebra({:not, _, [{:in, _, [left, right]}]}, _context, state) do
     binary_op_to_algebra(:in, "not in", left, right, state, nil, 2)
   end
@@ -178,7 +180,6 @@ defmodule CodeFormatter do
   ## Operators
 
   # TODO: Handle &
-  # TODO: Handle in and not in
 
   defp maybe_unary_op_to_algebra(fun, args, state) do
     with [arg] <- args,
@@ -195,13 +196,13 @@ defmodule CodeFormatter do
     # not and ! are nestable, all others are not.
     wrapped_doc =
       case arg do
-        {nestable, _, [_]} when op == nestable and nestable in [:!, :not] -> doc
+        {^op, _, [_]} when op in [:!, :not] -> doc
         _ -> wrap_in_parens_if_necessary(arg, doc)
       end
 
-    # not requires a space unless the doc was wrapped.
+    # not requires a space unless the doc was wrapped in parens.
     op_string =
-      if op == :not and wrapped_doc == doc do
+      if op in [:&, :not] and wrapped_doc == doc do
         "not "
       else
         Atom.to_string(op)
@@ -281,6 +282,8 @@ defmodule CodeFormatter do
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
+  # (! left) in right
+  # (not left) in right
   defp binary_operand_to_algebra({:__block__, _, [{op, _, [arg]}]}, state, :in,
                                  _parent_info, :left, _nesting) when op in [:not, :!] do
     {doc, state} = unary_op_to_algebra(op, arg, state)
@@ -318,7 +321,7 @@ defmodule CodeFormatter do
     end
   end
 
-  defp op?(quoted) do
+  defp operator?(quoted) do
     case quoted do
       {op, _, [_, _]} when is_atom(op) ->
         Code.Identifier.binary_op(op) != :error
@@ -331,30 +334,24 @@ defmodule CodeFormatter do
 
   ## Module attributes
 
-  # @foo
-  # @%{}
-  defp module_attribute_to_algebra({name, _meta, context} = arg, _context, state)
-       when is_atom(name) and is_atom(context) do
-    if Code.Identifier.classify(name) == :callable_local do
-      {"@" <> Atom.to_string(name), state}
-    else
-      unary_op_to_algebra(:@, arg, state)
-    end
+  # @Foo
+  # @Foo.Bar
+  defp module_attribute_to_algebra({:__aliases__, _, [_, _ | _]} = quoted, _context, state) do
+    {doc, state} = quoted_to_algebra(quoted, :argument, state)
+    {concat(concat("@(", doc), ")"), state}
   end
 
   # @foo bar
   # @foo(bar)
-  # @foo(bar, baz)
-  # @(1 + 1)
   defp module_attribute_to_algebra({name, _meta, [value]} = arg, context, state)
-       when is_atom(name) and name != :__block__ do
+       when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
       attr_doc = "@" <> Atom.to_string(name)
       {value_doc, state} = quoted_to_algebra(value, :argument, state)
 
       case context do
         :argument ->
-          {concat(attr_doc, surround("(", value_doc, ")")), state}
+          {concat(concat(attr_doc <> "(", value_doc), ")"), state}
         :block ->
           {space(attr_doc, value_doc), state}
       end
@@ -363,6 +360,7 @@ defmodule CodeFormatter do
     end
   end
 
+  # @foo
   # @(foo.bar())
   defp module_attribute_to_algebra(quoted, _context, state) do
     unary_op_to_algebra(:@, quoted, state)
@@ -586,10 +584,8 @@ defmodule CodeFormatter do
     wrap_in_parens_if_necessary(expr, doc)
   end
 
-  # TODO: do/end blocks and the capture operator (except &INT)
-  # also require parens.
   defp wrap_in_parens_if_necessary(quoted, doc) do
-    if op?(quoted) and not match?({:@, _, _}, quoted) do
+    if operator?(quoted) and not module_attribute_read?(quoted) and not integer_capture?(quoted) do
       concat(concat("(", nest(doc, 1)), ")")
     else
       doc
@@ -614,6 +610,15 @@ defmodule CodeFormatter do
       {glue(concat(doc_acc, ","), arg_doc), state_acc}
     end)
   end
+
+  defp module_attribute_read?({:@, _, [{var, _, var_context}]})
+       when is_atom(var) and is_atom(var_context) do
+    Code.Identifier.classify(var) == :callable_local
+  end
+  defp module_attribute_read?(_), do: false
+
+  defp integer_capture?({:&, _, [{:__block__, _, [integer]}]}) when is_integer(integer), do: true
+  defp integer_capture?(_), do: false
 
   ## Algebra helpers
 

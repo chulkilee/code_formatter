@@ -858,30 +858,6 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
-    test "with multiple of the same entry and left precedence" do
-      assert_same "foo |> bar |> baz"
-
-      bad = "foo |> bar |> baz"
-      good = """
-      foo
-      |> bar
-      |> baz
-      """
-      assert_format bad, good, @short_length
-    end
-
-    test "with multiple of the same entry and right precedence" do
-      assert_same "foo when bar when baz"
-
-      bad = "foo when bar when baz"
-      good = """
-      foo
-      when bar
-      when baz
-      """
-      assert_format bad, good, @short_length
-    end
-
     test "with multiple of the different entry and same precedence" do
       assert_same "foo <|> bar ~> baz"
 
@@ -890,18 +866,6 @@ defmodule CodeFormatterTest do
       foo
       <|> bar
       ~> baz
-      """
-      assert_format bad, good, @short_length
-    end
-
-    test "with multiple of the different entry and different precedence" do
-      assert_same "foo when bar | baz"
-
-      bad = "foo when bar | baz"
-      good = """
-      foo
-      when bar
-           | baz
       """
       assert_format bad, good, @short_length
     end
@@ -1043,21 +1007,21 @@ defmodule CodeFormatterTest do
     end
 
     test "mixed before and after lines" do
-      bad = "a when b and c when d"
+      bad = "a | b and c | d"
       good = """
       a
-      when b and
-             c
-      when d
+      | b and
+          c
+      | d
       """
-      assert_format bad, good, @medium_length
+      assert_format bad, good, @short_length
 
-      bad = "a when b and c + d + e + f when g"
+      bad = "a | b and c + d + e + f | g"
       good = """
       a
-      when b and
-             c + d + e + f
-      when g
+      | b and
+          c + d + e + f
+      | g
       """
       assert_format bad, good, @medium_length
     end
@@ -1158,12 +1122,18 @@ defmodule CodeFormatterTest do
     end
 
     test "fall back to @ as an operator when needed" do
-      assert_format "@+1", "@(+1)"
       assert_same "@(1 + 1)"
       assert_same "@:foo"
       assert_same "+@foo"
+      assert_same "@@foo"
       assert_same "@(+foo)"
-      assert_format "@(bar(1, 2))", "@bar(1, 2)"
+      assert_same "!(@(1 + 1))"
+      assert_same "(@Foo).Baz"
+      assert_same "@bar(1, 2)"
+
+      assert_format "@+1", "@(+1)"
+      assert_format "@Foo.Baz", "(@Foo).Baz"
+      assert_format "@(Foo.Bar).Baz", "(@(Foo.Bar)).Baz"
     end
   end
 end
