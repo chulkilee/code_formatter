@@ -1,5 +1,5 @@
 defmodule CodeFormatter do
-  import Inspect.Algebra, except: [format: 2], warn: false
+  import Inspect.Algebra, except: [format: 2, surround: 3, surround: 4]
 
   @line_length 98
   @double_quote "\""
@@ -141,6 +141,10 @@ defmodule CodeFormatter do
     quoted_to_algebra(arg, :argument, state)
   end
 
+  defp quoted_to_algebra({:__block__, _, []}, _context, state) do
+    {"", state}
+  end
+
   defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, _context, state) do
     {doc, state} =
       if is_atom(head) do
@@ -183,25 +187,25 @@ defmodule CodeFormatter do
     end
   end
 
-  defp unary_op_to_algebra(fun, arg, state) do
+  defp unary_op_to_algebra(op, arg, state) do
     {doc, state} = quoted_to_algebra(arg, :argument, state)
 
     # not and ! are nestable, all others are not.
     wrapped_doc =
       case arg do
-        {nestable, _, [_]} when fun == nestable and nestable in [:!, :not] -> doc
+        {nestable, _, [_]} when op == nestable and nestable in [:!, :not] -> doc
         _ -> wrap_in_parens_if_necessary(arg, doc)
       end
 
     # not requires a space unless the doc was wrapped.
-    wrapped_op =
-      if fun == :not and wrapped_doc == doc do
+    op_string =
+      if op == :not and wrapped_doc == doc do
         "not "
       else
-        Atom.to_string(fun)
+        Atom.to_string(op)
       end
 
-    {concat(wrapped_op, nest_by_length(wrapped_doc, wrapped_op)), state}
+    {concat(op_string, wrapped_doc), state}
   end
 
   defp maybe_binary_op_to_algebra(fun, args, state) do
@@ -332,7 +336,7 @@ defmodule CodeFormatter do
 
         case context do
           :argument ->
-            {concat(attribute, surround("(", value_doc, ")")), state}
+            {attribute |> concat("(") |> concat(value_doc) |> concat(")"), state}
           :block ->
             {space(attribute, value_doc), state}
         end
@@ -356,7 +360,7 @@ defmodule CodeFormatter do
   defp local_to_algebra(fun, args, state) do
     fun = Atom.to_string(fun)
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
-    {surround("#{fun}(", nest_by_length(args_doc, fun), ")"), state}
+    {surround("#{fun}(", args_doc, ")"), state}
   end
 
   ## Interpolation
@@ -420,7 +424,7 @@ defmodule CodeFormatter do
       args
       |> Enum.with_index()
       |> args_to_algebra(&bitstring_to_algebra(&1, &2, last), state)
-    {surround("<<", nest(args_doc, 1), ">>"), state}
+    {surround(args, "<<", args_doc, ">>", 2), state}
   end
 
   defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, _last) do
@@ -463,7 +467,7 @@ defmodule CodeFormatter do
 
   defp tuple_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
-    {surround("{", args_doc, "}"), state}
+    {surround(args, "{", args_doc, "}", 1), state}
   end
 
   defp atom_to_algebra(atom) when atom in [nil, true, false] do
@@ -537,10 +541,9 @@ defmodule CodeFormatter do
 
   ## Lists
 
-  # TODO: only be flex if elements are "simple expressions".
-  defp list_to_algebra(list, state) do
-    {args_doc, state} = args_to_algebra(list, &quoted_to_algebra(&1, :argument, &2), state)
-    {surround("[", args_doc, "]"), state}
+  defp list_to_algebra(args, state) do
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {surround(args, "[", args_doc, "]", 1), state}
   end
 
   ## Quoted helpers
@@ -586,6 +589,16 @@ defmodule CodeFormatter do
   end
 
   ## Algebra helpers
+
+  defp surround(left, doc, right) do
+    group(glue(nest(glue(left, "", doc), 2), "", right), :strict)
+  end
+
+  # TODO: Perform simple check for all data structures
+  # (calls not included).
+  defp surround(_args, left, doc, right, _flex_nesting) do
+    surround(left, doc, right)
+  end
 
   defp nest_by_length(doc, string) do
     nest(doc, String.length(string))

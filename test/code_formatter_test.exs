@@ -487,9 +487,17 @@ defmodule CodeFormatterTest do
       assert_format "<< 1 :: 2 - unit(3) - 4 * 5 >>", "<<1::2-unit(3)-(4 * 5)>>"
     end
 
-    test "is flex on line limits" do
-      assert_format "<<1, 2, 3, 4>>", "<<1, 2, 3,\n  4>>", @short_length
-      assert_format "<<1::1, 2::bits, 3::4-binary>>", "<<1::1, 2::bits,\n  3::4-binary>>", @medium_length
+    test "is strict on line limits" do
+      bad = "<<1, 2, 3, 4>>"
+      good = """
+      <<
+        1,
+        2,
+        3,
+        4
+      >>
+      """
+      assert_format bad, good, @short_length
     end
   end
 
@@ -509,13 +517,17 @@ defmodule CodeFormatterTest do
       assert_format "[1,2,3|4]", "[1, 2, 3 | 4]"
     end
 
-    test "are flex on line limit" do
+    test "are strict on line limit" do
       bad = """
       [11, 22, 33, 44]
       """
       good = """
-      [11, 22,
-       33, 44]
+      [
+        11,
+        22,
+        33,
+        44
+      ]
       """
       assert_format bad, good, @short_length
 
@@ -523,8 +535,11 @@ defmodule CodeFormatterTest do
       [11, 22, 33 | 44]
       """
       good = """
-      [11, 22,
-       33 | 44]
+      [
+        11,
+        22,
+        33 | 44
+      ]
       """
       assert_format bad, good, @short_length
 
@@ -532,8 +547,11 @@ defmodule CodeFormatterTest do
       [1, 2, 3 | 4]
       """
       good = """
-      [1, 2,
-       3 | 4]
+      [
+        1,
+        2,
+        3 | 4
+      ]
       """
       assert_format bad, good, @short_length
     end
@@ -556,8 +574,17 @@ defmodule CodeFormatterTest do
       assert_format "{1,2,3}", "{1, 2, 3}"
     end
 
-    test "is flex on line limits" do
-      assert_format "{1, 2, 3, 4}", "{1, 2, 3,\n 4}", @short_length
+    test "is strict on line limits" do
+      bad = "{1, 2, 3, 4}"
+      good = """
+      {
+        1,
+        2,
+        3,
+        4
+      }
+      """
+      assert_format bad, good, @short_length
     end
 
     test "removes trailing comma" do
@@ -593,20 +620,24 @@ defmodule CodeFormatterTest do
       assert_same "not not var"
     end
 
-    test "nests operand according to operator length" do
+    test "does not nests operand" do
       bad = "not foo(bar, baz, bat)"
       good = """
-      not foo(bar,
-              baz,
-              bat)
+      not foo(
+        bar,
+        baz,
+        bat
+      )
       """
       assert_format bad, good, @short_length
 
       bad = "~~~ foo(bar, baz, bat)"
       good = """
-      ~~~foo(bar,
-             baz,
-             bat)
+      ~~~foo(
+        bar,
+        baz,
+        bat
+      )
       """
       assert_format bad, good, @short_length
     end
@@ -635,8 +666,11 @@ defmodule CodeFormatterTest do
       fun(x, y, z)
       """
       good = """
-      fun(x, y,
-          z)
+      fun(
+        x,
+        y,
+        z
+      )
       """
       assert_format bad, good, @short_length
     end
@@ -676,34 +710,69 @@ defmodule CodeFormatterTest do
       """
       assert_format bad, good, @short_length
 
-      bad = "123 |> foo(bar)"
-      good = """
-      123
-      |> foo(bar)
-      """
-      assert_format bad, good, @short_length
-
       bad = "123 |> foo(bar, baz)"
       good = """
       123
-      |> foo(bar,
-             baz)
+      |> foo(
+           bar,
+           baz
+         )
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 |> foo(bar) |> bar(bat)"
+      good = """
+      123
+      |> foo(
+           bar
+         )
+      |> bar(
+           bat
+         )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, 123 |> bar(baz))"
       good = """
-      foo(bar,
-          123
-          |> bar(baz))
+      foo(
+        bar,
+        123
+        |> bar(
+             baz
+           )
+      )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, baz) |> 123"
       good = """
-      foo(bar,
-          baz)
+      foo(
+        bar,
+        baz
+      )
       |> 123
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo(bar, baz) |> 123 |> 456"
+      good = """
+      foo(
+        bar,
+        baz
+      )
+      |> 123
+      |> 456
+      """
+      assert_format bad, good, @short_length
+
+      bad = "123 |> foo(bar, baz) |> 456"
+      good = """
+      123
+      |> foo(
+           bar,
+           baz
+         )
+      |> 456
       """
       assert_format bad, good, @short_length
     end
@@ -723,34 +792,48 @@ defmodule CodeFormatterTest do
       """
       assert_format bad, good, @short_length
 
-      bad = "123 | foo(bar, baz)"
+      bad = "123 | foo(bar, baz) | bar(baz, bat)"
       good = """
       123
-      | foo(bar,
-            baz)
+      | foo(
+          bar,
+          baz
+        )
+      | bar(
+          baz,
+          bat
+        )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, 123 | bar(baz))"
       good = """
-      foo(bar,
-          123
-          | bar(baz))
+      foo(
+        bar,
+        123
+        | bar(
+            baz
+          )
+      )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, baz) | 123"
       good = """
-      foo(bar,
-          baz)
+      foo(
+        bar,
+        baz
+      )
       | 123
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, baz) | 123 | 456"
       good = """
-      foo(bar,
-          baz)
+      foo(
+        bar,
+        baz
+      )
       | 123
       | 456
       """
@@ -759,8 +842,10 @@ defmodule CodeFormatterTest do
       bad = "123 | foo(bar, baz) | 456"
       good = """
       123
-      | foo(bar,
-            baz)
+      | foo(
+          bar,
+          baz
+        )
       | 456
       """
       assert_format bad, good, @short_length
@@ -838,24 +923,31 @@ defmodule CodeFormatterTest do
       bad = "123 ++ foo(bar, baz)"
       good = """
       123 ++
-        foo(bar,
-            baz)
+        foo(
+          bar,
+          baz
+        )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, 123 ++ bar(baz))"
       good = """
-      foo(bar,
-          123 ++
-            bar(baz))
+      foo(
+        bar,
+        123 ++
+          bar(
+            baz
+          )
+      )
       """
       assert_format bad, good, @short_length
 
       bad = "foo(bar, baz) ++ 123"
       good = """
-      foo(bar,
-          baz) ++
-        123
+      foo(
+        bar,
+        baz
+      ) ++ 123
       """
       assert_format bad, good, @short_length
     end
@@ -961,6 +1053,65 @@ defmodule CodeFormatterTest do
       when g
       """
       assert_format bad, good, @medium_length
+    end
+  end
+
+  # Theoretically it fits under operators but the goal of
+  # this section is to test common idioms.
+  describe "match" do
+    test "with calls" do
+      bad = "var = fun(one, two, three)"
+      good = """
+      var =
+        fun(
+          one,
+          two,
+          three
+        )
+      """
+      assert_format bad, good, @short_length
+
+      bad = "fun(one, two, three) = var"
+      good = """
+      fun(
+        one,
+        two,
+        three
+      ) = var
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with containers" do
+      bad = "var = {one, two, three}"
+      good = """
+      var =
+        {
+          one,
+          two,
+          three
+        }
+      """
+      assert_format bad, good, @short_length
+
+      bad = "{one, two, three} = var"
+      good = """
+      {
+        one,
+        two,
+        three
+      } = var
+      """
+      assert_format bad, good, @short_length
+    end
+
+    @tag :skip
+    test "with heredoc" do
+      assert_same """
+      var = '''
+      one
+      '''
+      """, @short_length
     end
   end
 
