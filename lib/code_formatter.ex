@@ -81,6 +81,10 @@ defmodule CodeFormatter do
     end
   end
 
+  defp quoted_to_algebra({{:., _, _}, _, _} = quoted, _context, state) do
+    remote_to_algebra(quoted, state)
+  end
+
   defp quoted_to_algebra({:{}, _, args}, _context, state) do
     tuple_to_algebra(args, state)
   end
@@ -368,8 +372,26 @@ defmodule CodeFormatter do
 
   ## Remote calls
 
-  defp remote_to_algebra(_quoted, _state) do
-    raise "not yet implemented"
+  # expression.function(arguments)
+  defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state) do
+    remote_to_algebra(target, fun, args, state)
+  end
+
+  defp remote_to_algebra(target, fun, args, state) when is_atom(fun) do
+    {target_doc, state} = quoted_to_algebra_with_parens_if_necessary(target, :argument, state)
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    fun = Code.Identifier.inspect_as_function(fun)
+
+    call_doc =
+      if args == [] do
+        "#{fun}()"
+      else
+        surround("#{fun}(", args_doc, ")")
+      end
+
+    doc = nest(glue(concat(target_doc, "."), "", call_doc), 2)
+
+    {doc, state}
   end
 
   ## Local calls
