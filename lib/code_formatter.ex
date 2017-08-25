@@ -187,6 +187,10 @@ defmodule CodeFormatter do
     binary_op_to_algebra(:in, "not in", left, right, state, nil, 2)
   end
 
+  defp quoted_to_algebra({:fn, _, [_ | _] = clauses}, _context, state) do
+    anon_fun_to_algebra(clauses, state)
+  end
+
   defp quoted_to_algebra({fun, meta, args}, _context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
@@ -642,6 +646,27 @@ defmodule CodeFormatter do
   defp list_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {surround(args, "[", args_doc, "]", 1), state}
+  end
+
+  ## Anonymous functions
+
+  defp anon_fun_to_algebra(clauses, state) do
+    case clauses do
+      [{:"->", _, [args, body]}] ->
+        {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+        {body_doc, state} = quoted_to_algebra(body, :block, state)
+        head_doc =
+          case args do
+            [] ->
+              "fn ->"
+            _other ->
+              "fn" |> space(args_doc) |> space("->")
+          end
+        doc = group(glue(nest(glue(head_doc, " ", body_doc), 2), " ", "end"), :strict)
+        {doc, state}
+      _other ->
+        raise "not implemented yet"
+    end
   end
 
   ## Quoted helpers

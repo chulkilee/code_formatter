@@ -98,4 +98,34 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
   end
+
+  describe "anonymous functions" do
+    test "with a single clause and no arguments" do
+      assert_format "fn  ->:ok  end", "fn -> :ok end"
+
+      bad = "fn -> :foo end"
+      good = """
+      fn ->
+        :foo
+      end
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with a single clause and arguments" do
+      assert_format "fn  x ,y-> x + y  end", "fn x, y -> x + y end"
+
+      bad = "fn x -> foo(x) end"
+      good = """
+      fn x ->
+        foo(x)
+      end
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "uses block context for the body of each clause" do
+      assert_same "fn -> @foo bar end"
+    end
+  end
 end
