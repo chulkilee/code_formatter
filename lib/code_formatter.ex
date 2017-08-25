@@ -321,28 +321,41 @@ defmodule CodeFormatter do
 
   ## Module attributes
 
-  defp module_attribute_to_algebra({:__block__, _meta, _args} = block, _context, state) do
-    unary_op_to_algebra(:@, block, state)
+  # @foo
+  # @%{}
+  defp module_attribute_to_algebra({name, _meta, context} = arg, _context, state)
+       when is_atom(name) and is_atom(context) do
+    if Code.Identifier.classify(name) == :callable_local do
+      {"@" <> Atom.to_string(name), state}
+    else
+      unary_op_to_algebra(:@, arg, state)
+    end
   end
 
-  defp module_attribute_to_algebra({name, _meta, value_or_context} = arg,
-                                   context, state) do
-    case {Code.Identifier.classify(name), value_or_context} do
-      {:callable_local, ctx} when is_atom(ctx) ->
-        {"@" <> Atom.to_string(name), state}
-      {:callable_local, [value]} ->
-        attribute = "@" <> Atom.to_string(name)
-        {value_doc, state} = quoted_to_algebra(value, :argument, state)
+  # @foo bar
+  # @foo(bar)
+  # @foo(bar, baz)
+  # @(1 + 1)
+  defp module_attribute_to_algebra({name, _meta, [value]} = arg, context, state)
+       when is_atom(name) and name != :__block__ do
+    if Code.Identifier.classify(name) == :callable_local do
+      attr_doc = "@" <> Atom.to_string(name)
+      {value_doc, state} = quoted_to_algebra(value, :argument, state)
 
-        case context do
-          :argument ->
-            {attribute |> concat("(") |> concat(value_doc) |> concat(")"), state}
-          :block ->
-            {space(attribute, value_doc), state}
-        end
-      _other ->
-        unary_op_to_algebra(:@, arg, state)
+      case context do
+        :argument ->
+          {concat(attr_doc, surround("(", value_doc, ")")), state}
+        :block ->
+          {space(attr_doc, value_doc), state}
+      end
+    else
+      unary_op_to_algebra(:@, arg, state)
     end
+  end
+
+  # @(foo.bar())
+  defp module_attribute_to_algebra(quoted, _context, state) do
+    unary_op_to_algebra(:@, quoted, state)
   end
 
   ## Remote calls
@@ -558,7 +571,7 @@ defmodule CodeFormatter do
   # TODO: do/end blocks and the capture operator (except &INT)
   # also require parens.
   defp wrap_in_parens_if_necessary(quoted, doc) do
-    if op?(quoted) do
+    if op?(quoted) and not match?({:@, _, _}, quoted) do
       concat(concat("(", nest(doc, 1)), ")")
     else
       doc

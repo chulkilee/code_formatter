@@ -1140,6 +1140,9 @@ defmodule CodeFormatterTest do
       assert_format "@+1", "@(+1)"
       assert_same "@(1 + 1)"
       assert_same "@:foo"
+      assert_same "+@foo"
+      assert_same "@(+foo)"
+      assert_format "@(bar(1, 2))", "@bar(1, 2)"
     end
   end
 end
