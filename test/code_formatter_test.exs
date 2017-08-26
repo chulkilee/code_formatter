@@ -124,6 +124,17 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
+    test "with multiple clauses" do
+      assert_same """
+      fn
+        argument1 ->
+          body1
+        argument2 ->
+          body2
+      end
+      """, @short_length
+    end
+
     test "uses block context for the body of each clause" do
       assert_same "fn -> @foo bar end"
     end

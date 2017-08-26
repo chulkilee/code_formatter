@@ -650,23 +650,46 @@ defmodule CodeFormatter do
 
   ## Anonymous functions
 
+  # fn -> block end
+  # fn args -> block end
+  defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {body_doc, state} = quoted_to_algebra(body, :block, state)
+    head_doc =
+      case args do
+        [] ->
+          "fn ->"
+        _other ->
+          "fn" |> space(args_doc) |> space("->")
+      end
+    doc = group(glue(nest(glue(head_doc, " ", body_doc), 2), " ", "end"), :strict)
+    {doc, state}
+  end
+
+  # fn
+  #   args1 ->
+  #     block1
+  #   args2 ->
+  #     block2
+  # end
   defp anon_fun_to_algebra(clauses, state) do
-    case clauses do
-      [{:"->", _, [args, body]}] ->
-        {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
-        {body_doc, state} = quoted_to_algebra(body, :block, state)
-        head_doc =
-          case args do
-            [] ->
-              "fn ->"
-            _other ->
-              "fn" |> space(args_doc) |> space("->")
-          end
-        doc = group(glue(nest(glue(head_doc, " ", body_doc), 2), " ", "end"), :strict)
-        {doc, state}
-      _other ->
-        raise "not implemented yet"
-    end
+    {clauses_docs, state} = clauses_to_algebra(clauses, state)
+    {line(nest(line("fn", clauses_docs), 2), "end"), state}
+  end
+
+  defp clauses_to_algebra([clause | [_ | _] = clauses], state) do
+    {clause_doc, state} = split_clause_to_algebra(clause, state)
+
+    Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
+      {clause_doc, state_acc} = split_clause_to_algebra(clause, state_acc)
+      {line(doc_acc, clause_doc), state_acc}
+    end)
+  end
+
+  defp split_clause_to_algebra({:"->", _, [[_ | _] = args, body]}, state) do
+    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {body_doc, state} = quoted_to_algebra(body, :block, state)
+    {args_doc |> space("->") |> line(body_doc) |> nest(2), state}
   end
 
   ## Quoted helpers
