@@ -651,18 +651,37 @@ defmodule CodeFormatter do
   ## Anonymous functions
 
   # fn -> block end
+  defp anon_fun_to_algebra([{:"->", _, [[], body]}], state) do
+    {body_doc, state} = quoted_to_algebra(body, :block, state)
+
+    doc =
+      "fn ->"
+      |> glue(body_doc)
+      |> nest(2)
+      |> glue("end")
+      |> group(:strict)
+
+    {doc, state}
+  end
+
   # fn args -> block end
   defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {body_doc, state} = quoted_to_algebra(body, :block, state)
-    head_doc =
-      case args do
-        [] ->
-          "fn ->"
-        _other ->
-          "fn" |> space(args_doc) |> space("->")
-      end
-    doc = group(glue(nest(glue(head_doc, " ", body_doc), 2), " ", "end"), :strict)
+
+    body_doc =
+      " ->"
+      |> glue(body_doc)
+      |> nest(2)
+
+    doc =
+      "fn"
+      |> glue(args_doc)
+      |> concat(body_doc)
+      |> nest(2)
+      |> glue("end")
+      |> group(:strict)
+
     {doc, state}
   end
 
@@ -689,7 +708,7 @@ defmodule CodeFormatter do
   defp split_clause_to_algebra({:"->", _, [[_ | _] = args, body]}, state) do
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {body_doc, state} = quoted_to_algebra(body, :block, state)
-    {args_doc |> space("->") |> line(body_doc) |> nest(2), state}
+    {args_doc |> concat(" ->") |> line(body_doc) |> nest(2), state}
   end
 
   ## Quoted helpers

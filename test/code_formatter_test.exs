@@ -117,8 +117,20 @@ defmodule CodeFormatterTest do
 
       bad = "fn x -> foo(x) end"
       good = """
-      fn x ->
-        foo(x)
+      fn
+        x ->
+          foo(x)
+      end
+      """
+      assert_format bad, good, @short_length
+
+      bad = "fn one, two, three -> foo(x) end"
+      good = """
+      fn
+        one,
+        two,
+        three ->
+          foo(x)
       end
       """
       assert_format bad, good, @short_length
