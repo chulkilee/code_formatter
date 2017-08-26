@@ -4,6 +4,7 @@ defmodule CodeFormatterTest do
   import CodeFormatter.Case
 
   @short_length [line_length: 10]
+  @medium_length [line_length: 20]
 
   describe "aliases" do
     test "with atom-only parts" do
@@ -164,6 +165,59 @@ defmodule CodeFormatterTest do
           body2
       end
       """, @short_length
+    end
+
+    test "with heredocs" do
+      assert_same """
+      fn
+        arg1 ->
+          '''
+          foo
+          '''
+        arg2 ->
+          '''
+          bar
+          '''
+      end
+      """
+    end
+
+    test "with multiple empty clauses" do
+      assert_same """
+      fn
+        () -> :ok1
+        () -> :ok2
+      end
+      """
+    end
+
+    test "with when in clauses" do
+      assert_same """
+      fn
+        a1 when a + b -> :ok
+        b1 when c + d -> :ok
+      end
+      """
+
+      long = """
+      fn
+        a1, a2 when a + b -> :ok
+        b1, b2 when c + d -> :ok
+      end
+      """
+      assert_same long
+
+      good = """
+      fn
+        a1, a2 when
+            a + b ->
+          :ok
+        b1, b2 when
+            c + d ->
+          :ok
+      end
+      """
+      assert_format long, good, @medium_length
     end
 
     test "uses block context for the body of each clause" do

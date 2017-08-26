@@ -421,7 +421,7 @@ defmodule CodeFormatter do
 
   defp remote_to_algebra(target, fun_doc, args, state, nesting) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
 
     call_doc =
       if args == [] do
@@ -457,7 +457,7 @@ defmodule CodeFormatter do
 
   defp local_to_algebra(fun, args, state) when is_atom(fun) do
     fun = Atom.to_string(fun)
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {surround("#{fun}(", args_doc, ")"), state}
   end
 
@@ -525,7 +525,7 @@ defmodule CodeFormatter do
     {args_doc, state} =
       args
       |> Enum.with_index()
-      |> args_to_algebra(&bitstring_to_algebra(&1, &2, last), state)
+      |> args_to_algebra(state, &bitstring_to_algebra(&1, &2, last))
     {surround(args, "<<", args_doc, ">>", 2), state}
   end
 
@@ -568,7 +568,7 @@ defmodule CodeFormatter do
   end
 
   defp tuple_to_algebra(args, state) do
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {surround(args, "{", args_doc, "}", 1), state}
   end
 
@@ -644,7 +644,7 @@ defmodule CodeFormatter do
   ## Lists
 
   defp list_to_algebra(args, state) do
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {surround(args, "[", args_doc, "]", 1), state}
   end
 
@@ -666,7 +666,7 @@ defmodule CodeFormatter do
 
   # fn args -> block end
   defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {body_doc, state} = quoted_to_algebra(body, :block, state)
 
     body_doc =
@@ -696,19 +696,41 @@ defmodule CodeFormatter do
     {line(nest(line("fn", group(clauses_docs, :strict), true), 2), "end"), state}
   end
 
-  defp clauses_to_algebra([clause | [_ | _] = clauses], state) do
-    {clause_doc, state} = split_clause_to_algebra(clause, state)
+  ## Clauses
+
+  defp clauses_to_algebra([clause | clauses], state) do
+    {clause_doc, state} = clause_to_algebra(clause, state)
 
     Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
-      {clause_doc, state_acc} = split_clause_to_algebra(clause, state_acc)
+      {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
       {line(doc_acc, clause_doc), state_acc}
     end)
   end
 
-  defp split_clause_to_algebra({:"->", _, [[_ | _] = args, body]}, state) do
-    {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
+  defp clause_to_algebra({:"->", _, [[], body]}, state) do
     {body_doc, state} = quoted_to_algebra(body, :block, state)
-    {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
+    {"() ->" |> glue(body_doc) |> nest(2), state}
+  end
+
+  defp clause_to_algebra({:"->", _, [args, body]}, state) do
+    {args_doc, state} = clause_args_to_algebra(args, state)
+    {body_doc, state} = quoted_to_algebra(body, :block, state)
+    {concat(group(args_doc, :flex), " ->" |> glue(body_doc) |> nest(2)), state}
+  end
+
+  defp clause_args_to_algebra([{:when, meta, args}], state) do
+    {args, [left, right]} = Enum.split(args, -2)
+    args = args ++ [{:when, meta, [left, right]}]
+    args_to_algebra(args, state, fn
+      {:when, _, [left, right]}, state ->
+        binary_op_to_algebra(:when, "when", left, right, state, nil, 4)
+      arg, state ->
+        quoted_to_algebra(arg, :argument, state)
+    end)
+  end
+
+  defp clause_args_to_algebra(args, state) do
+    args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
   end
 
   ## Quoted helpers
@@ -740,11 +762,11 @@ defmodule CodeFormatter do
     doc
   end
 
-  defp args_to_algebra([], _fun, state) do
+  defp args_to_algebra([], state, _fun) do
     {empty(), state}
   end
 
-  defp args_to_algebra([arg | args], fun, state) do
+  defp args_to_algebra([arg | args], state, fun) do
     Enum.reduce(args, fun.(arg, state), fn arg, {doc_acc, state_acc} ->
       {arg_doc, state_acc} = fun.(arg, state_acc)
       {glue(concat(doc_acc, ","), arg_doc), state_acc}
