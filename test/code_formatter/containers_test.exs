@@ -1,4 +1,4 @@
-defmodule CodeFormatter.ContainerLiteralsTest do
+defmodule CodeFormatter.ContainersTest do
   use ExUnit.Case, async: true
 
   import CodeFormatter.Case
