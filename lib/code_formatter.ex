@@ -53,7 +53,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line(true)), @double_heredoc)
+        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line(:hard)), @double_heredoc)
       true ->
         interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
@@ -65,7 +65,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         remote_to_algebra(quoted, state)
       meta[:format] == :list_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line(true)), @single_heredoc)
+        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line(:hard)), @single_heredoc)
       true ->
         interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
@@ -102,7 +102,7 @@ defmodule CodeFormatter do
     case meta[:format] do
       :list_heredoc ->
         string = list |> List.to_string |> escape_string(:none)
-        {@single_heredoc |> line(string, true) |> concat(@single_heredoc), state}
+        {@single_heredoc |> line(string, :hard) |> concat(@single_heredoc), state}
       :charlist ->
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
@@ -115,7 +115,7 @@ defmodule CodeFormatter do
        when is_binary(string) do
     if meta[:format] == :bin_heredoc do
       string = escape_string(string, :none)
-      {@double_heredoc |> line(string, true) |> concat(@double_heredoc), state}
+      {@double_heredoc |> line(string, :hard) |> concat(@double_heredoc), state}
     else
       string = escape_string(string, @double_quote)
       {@double_quote |> concat(string) |> concat(@double_quote), state}
@@ -518,7 +518,7 @@ defmodule CodeFormatter do
         acc = <<?~, name, opening_terminator::binary>>
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
-          interpolation_to_algebra(entries, :none, state, concat(acc, line(true)), opening_terminator)
+          interpolation_to_algebra(entries, :none, state, concat(acc, line(:hard)), opening_terminator)
         else
           closing_terminator = closing_sigil_terminator(opening_terminator)
           interpolation_to_algebra(
@@ -715,7 +715,7 @@ defmodule CodeFormatter do
   # end
   defp anon_fun_to_algebra(clauses, state) do
     {clauses_docs, state} = clauses_to_algebra(clauses, state)
-    {line(nest(line("fn", group(clauses_docs), true), 2), "end"), state}
+    {line(nest(line("fn", group(clauses_docs), :hard), 2), "end"), state}
   end
 
   ## Clauses
