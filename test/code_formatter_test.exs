@@ -116,23 +116,20 @@ defmodule CodeFormatterTest do
     test "with a single clause and arguments" do
       assert_format "fn  x ,y-> x + y  end", "fn x, y -> x + y end"
 
-      # TODO: fn x -> should be in the same line
       bad = "fn x -> foo(x) end"
       good = """
-      fn
-        x ->
-          foo(x)
+      fn x ->
+        foo(x)
       end
       """
       assert_format bad, good, @short_length
 
       bad = "fn one, two, three -> foo(x) end"
       good = """
-      fn
-        one,
-        two,
-        three ->
-          foo(x)
+      fn one,
+         two,
+         three ->
+        foo(x)
       end
       """
       assert_format bad, good, @short_length
@@ -220,7 +217,6 @@ defmodule CodeFormatterTest do
       assert_format long, good, @medium_length
     end
 
-    @tag :skip
     test "inside a call" do
       assert_same """
       foo(fn x -> y end)
@@ -241,11 +237,10 @@ defmodule CodeFormatterTest do
       """
 
       assert_same """
-      foo(fn
-        x ->
-          y
+      foo(fn x ->
+        :really_long_atom
       end)
-      """, @short_length
+      """, @medium_length
 
       assert_same """
       foo(bar, fn

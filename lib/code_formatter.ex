@@ -456,23 +456,20 @@ defmodule CodeFormatter do
     {concat(fun_doc, "()"), state}
   end
 
-  # TODO: Revisit this.
   defp call_args_to_algebra(fun_doc, args, state) do
     {left, right} = Enum.split(args, -1)
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
     {right_doc, state} = args_to_algebra(right, state, &quoted_to_algebra(&1, :argument, &2))
 
+    # TODO: Define explicitly when to use next_break_fits.
     args_doc =
       if left == [] do
-        group(right_doc)
+        next_break_fits(right_doc)
       else
-        glue(concat(left_doc, ","), group(right_doc))
+        glue(concat(left_doc, ","), next_break_fits(right_doc))
       end
 
     call_doc =
-      # Notice we pass the :break argument to nest because we only want
-      # to nest if the break is enabled. This is necessary because call
-      # args allows the last argument to be "flex" and ignore new lines.
       fun_doc
       |> concat("(")
       |> glue("", args_doc)
@@ -686,20 +683,20 @@ defmodule CodeFormatter do
     {doc, state}
   end
 
-  # fn args -> block end
+  # fn x -> y end
+  # fn x ->
+  #   y
+  # end
   defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {body_doc, state} = quoted_to_algebra(body, :block, state)
 
-    body_doc =
-      " ->"
-      |> glue(body_doc)
-      |> nest(2)
-
     doc =
-      "fn"
-      |> glue(args_doc)
-      |> concat(body_doc)
+      "fn "
+      |> concat(args_doc)
+      |> concat(" ->")
+      |> nest(1)
+      |> glue(body_doc)
       |> nest(2)
       |> glue("end")
       |> group()
