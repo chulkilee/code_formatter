@@ -46,6 +46,13 @@ defmodule CodeFormatter do
     %{}
   end
 
+  # Special AST nodes from compiler feedback.
+
+  defp quoted_to_algebra({:special, :arguments, args}, _context, state) do
+    {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {group(doc), state}
+  end
+
   defp quoted_to_algebra({:<<>>, meta, entries}, _context, state) do
     cond do
       entries == [] ->
@@ -197,12 +204,6 @@ defmodule CodeFormatter do
          :error <- maybe_unary_op_to_algebra(fun, args, state),
          :error <- maybe_binary_op_to_algebra(fun, args, state),
          do: local_to_algebra(fun, args, state)
-  end
-
-  # Special AST nodes from compiler feedback.
-  defp quoted_to_algebra({:special, :arguments, args, _group}, _context, state) do
-    {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {group(doc), state}
   end
 
   ## Operators
@@ -469,14 +470,7 @@ defmodule CodeFormatter do
         glue(concat(left_doc, ","), next_break_fits(right_doc))
       end
 
-    call_doc =
-      fun_doc
-      |> concat("(")
-      |> glue("", args_doc)
-      |> nest(2, :break)
-      |> glue("", ")")
-      |> group()
-
+    call_doc = surround(concat(fun_doc, "("), args_doc, ")", :break)
     {call_doc, state}
   end
 
@@ -498,7 +492,7 @@ defmodule CodeFormatter do
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
     {doc, state} = quoted_to_algebra(quoted, :block, state)
-    doc = group(glue(nest(glue("\#{", "", doc), 2), "", "}"))
+    doc = surround("\#{", doc, "}")
     interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
 
@@ -545,7 +539,7 @@ defmodule CodeFormatter do
       args
       |> Enum.with_index()
       |> args_to_algebra(state, &bitstring_to_algebra(&1, &2, last))
-    {surround(args, "<<", args_doc, ">>", 2), state}
+    {container(args, "<<", args_doc, ">>"), state}
   end
 
   defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, _last) do
@@ -588,7 +582,7 @@ defmodule CodeFormatter do
 
   defp tuple_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {surround(args, "{", args_doc, "}", 1), state}
+    {container(args, "{", args_doc, "}"), state}
   end
 
   defp atom_to_algebra(atom) when atom in [nil, true, false] do
@@ -664,7 +658,7 @@ defmodule CodeFormatter do
 
   defp list_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {surround(args, "[", args_doc, "]", 1), state}
+    {container(args, "[", args_doc, "]"), state}
   end
 
   ## Anonymous functions
@@ -737,12 +731,14 @@ defmodule CodeFormatter do
     {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
+  # fn a, b, c when d -> e end
   defp clause_args_to_algebra([{:when, _, args}], state) do
     {args, [right]} = Enum.split(args, -1)
-    left = {:special, :arguments, args, :strict}
+    left = {:special, :arguments, args}
     binary_op_to_algebra(:when, "when", left, right, state, nil, 4)
   end
 
+  # fn a, b, c -> e end
   defp clause_args_to_algebra(args, state) do
     args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
   end
@@ -818,16 +814,16 @@ defmodule CodeFormatter do
     unary_operator?(quoted) or binary_operator?(quoted)
   end
 
-  ## Algebra helpers
-
-  defp surround(left, doc, right) do
-    group(glue(nest(glue(left, "", doc), 2), "", right))
-  end
-
   # TODO: Perform simple check for all data structures
   # (calls not included).
-  defp surround(_args, left, doc, right, _flex_nesting) do
+  defp container(_args, left, doc, right) do
     surround(left, doc, right)
+  end
+
+  ## Algebra helpers
+
+  defp surround(left, doc, right, nest \\ :always) do
+    group(glue(nest(glue(left, "", doc), 2, nest), "", right))
   end
 
   defp nest_by_length(doc, string) do
