@@ -84,7 +84,8 @@ defmodule CodeFormatter.CallsTest do
       my_function.foo().bar(2, 3).baz(4, 5)
       """
       good = """
-      my_function.foo().
+      my_function.
+        foo().
         bar(2, 3).
         baz(4, 5)
       """

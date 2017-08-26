@@ -409,8 +409,7 @@ defmodule CodeFormatter.OperatorsTest do
       bad = "one * (two + three + four) * five"
       good = """
       one *
-        (two +
-           three +
+        (two + three +
            four) * five
       """
       assert_format bad, good, @medium_length
@@ -419,10 +418,8 @@ defmodule CodeFormatter.OperatorsTest do
       good = """
       var =
         one *
-          (two +
-             three +
-             four) *
-          five
+          (two + three +
+             four) * five
       """
       assert_format bad, good, @medium_length
     end
@@ -438,8 +435,7 @@ defmodule CodeFormatter.OperatorsTest do
       bad = "a | b and c | d"
       good = """
       a
-      | b and
-          c
+      | b and c
       | d
       """
       assert_format bad, good, @short_length

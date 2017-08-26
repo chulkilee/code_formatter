@@ -199,6 +199,12 @@ defmodule CodeFormatter do
          do: local_to_algebra(fun, args, state)
   end
 
+  # Special AST nodes from compiler feedback.
+  defp quoted_to_algebra({:special, :arguments, args, _group}, _context, state) do
+    {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {group(doc), state}
+  end
+
   ## Operators
 
   defp maybe_unary_op_to_algebra(fun, args, state) do
@@ -269,7 +275,7 @@ defmodule CodeFormatter do
         op in @left_new_line_before_binary_operators ->
           op_string = op_string <> " "
           doc = concat(glue(left, op_string), nest_by_length(right, op_string))
-          if op_info == parent_info, do: doc, else: group(doc, :strict)
+          if op_info == parent_info, do: doc, else: group(doc)
         op in @right_new_line_before_binary_operators ->
           op_string = op_string <> " "
 
@@ -291,10 +297,10 @@ defmodule CodeFormatter do
             end
 
           doc = concat(glue(left, op_string), right)
-          if op_info == parent_info, do: doc, else: group(doc, :strict)
+          if op_info == parent_info, do: doc, else: group(doc)
         true ->
           op_string = " " <> op_string
-          concat(left, nest(glue(op_string, group(right, :strict)), nesting))
+          concat(left, nest(flex_glue(op_string, group(right)), nesting))
       end
 
     {doc, state}
@@ -406,7 +412,7 @@ defmodule CodeFormatter do
     end
   end
 
-  ## Remote calls (and anonymous function calls)
+  ## Calls (local, remote and anonymous)
 
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state)
@@ -415,23 +421,15 @@ defmodule CodeFormatter do
     remote_to_algebra(target, fun_doc, args, state, 2)
   end
 
+  # expression.(arguments)
   defp remote_to_algebra({{:., _, [target]}, _, args}, state) do
     remote_to_algebra(target, empty(), args, state, 2)
   end
 
   defp remote_to_algebra(target, fun_doc, args, state, nesting) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-
-    call_doc =
-      if args == [] do
-        concat(fun_doc, "()")
-      else
-        surround(concat(fun_doc, "("), args_doc, ")")
-      end
-
+    {call_doc, state} = call_args_to_algebra(fun_doc, args, state)
     doc = nest(glue(concat(target_doc, "."), "", call_doc), nesting)
-
     {doc, state}
   end
 
@@ -449,16 +447,40 @@ defmodule CodeFormatter do
     quoted_to_algebra_with_parens_if_necessary(quoted, :argument, state)
   end
 
-  ## Local calls
-
-  defp local_to_algebra(fun, [], state) when is_atom(fun) do
-    {"#{fun}()", state}
+  # function(arguments)
+  defp local_to_algebra(fun, args, state) when is_atom(fun) do
+    call_args_to_algebra(Atom.to_string(fun), args, state)
   end
 
-  defp local_to_algebra(fun, args, state) when is_atom(fun) do
-    fun = Atom.to_string(fun)
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {surround("#{fun}(", args_doc, ")"), state}
+  defp call_args_to_algebra(fun_doc, [], state) do
+    {concat(fun_doc, "()"), state}
+  end
+
+  # TODO: Revisit this.
+  defp call_args_to_algebra(fun_doc, args, state) do
+    {left, right} = Enum.split(args, -1)
+    {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
+    {right_doc, state} = args_to_algebra(right, state, &quoted_to_algebra(&1, :argument, &2))
+
+    args_doc =
+      if left == [] do
+        group(right_doc)
+      else
+        glue(concat(left_doc, ","), group(right_doc))
+      end
+
+    call_doc =
+      # Notice we pass the :break argument to nest because we only want
+      # to nest if the break is enabled. This is necessary because call
+      # args allows the last argument to be "flex" and ignore new lines.
+      fun_doc
+      |> concat("(")
+      |> glue("", args_doc)
+      |> nest(2, :break)
+      |> glue("", ")")
+      |> group()
+
+    {call_doc, state}
   end
 
   ## Interpolation
@@ -479,7 +501,7 @@ defmodule CodeFormatter do
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, _, [quoted]}, {:binary, _, _}]} = entry
     {doc, state} = quoted_to_algebra(quoted, :block, state)
-    doc = group(glue(nest(glue("\#{", "", doc), 2), "", "}"), :strict)
+    doc = group(glue(nest(glue("\#{", "", doc), 2), "", "}"))
     interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
 
@@ -496,7 +518,7 @@ defmodule CodeFormatter do
         acc = <<?~, name, opening_terminator::binary>>
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
-          interpolation_to_algebra(entries, :none, state, concat(acc, line()), opening_terminator)
+          interpolation_to_algebra(entries, :none, state, concat(acc, line(true)), opening_terminator)
         else
           closing_terminator = closing_sigil_terminator(opening_terminator)
           interpolation_to_algebra(
@@ -659,7 +681,7 @@ defmodule CodeFormatter do
       |> glue(body_doc)
       |> nest(2)
       |> glue("end")
-      |> group(:strict)
+      |> group()
 
     {doc, state}
   end
@@ -680,7 +702,7 @@ defmodule CodeFormatter do
       |> concat(body_doc)
       |> nest(2)
       |> glue("end")
-      |> group(:strict)
+      |> group()
 
     {doc, state}
   end
@@ -693,7 +715,7 @@ defmodule CodeFormatter do
   # end
   defp anon_fun_to_algebra(clauses, state) do
     {clauses_docs, state} = clauses_to_algebra(clauses, state)
-    {line(nest(line("fn", group(clauses_docs, :strict), true), 2), "end"), state}
+    {line(nest(line("fn", group(clauses_docs), true), 2), "end"), state}
   end
 
   ## Clauses
@@ -715,18 +737,13 @@ defmodule CodeFormatter do
   defp clause_to_algebra({:"->", _, [args, body]}, state) do
     {args_doc, state} = clause_args_to_algebra(args, state)
     {body_doc, state} = quoted_to_algebra(body, :block, state)
-    {concat(group(args_doc, :flex), " ->" |> glue(body_doc) |> nest(2)), state}
+    {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
-  defp clause_args_to_algebra([{:when, meta, args}], state) do
-    {args, [left, right]} = Enum.split(args, -2)
-    args = args ++ [{:when, meta, [left, right]}]
-    args_to_algebra(args, state, fn
-      {:when, _, [left, right]}, state ->
-        binary_op_to_algebra(:when, "when", left, right, state, nil, 4)
-      arg, state ->
-        quoted_to_algebra(arg, :argument, state)
-    end)
+  defp clause_args_to_algebra([{:when, _, args}], state) do
+    {args, [right]} = Enum.split(args, -1)
+    left = {:special, :arguments, args, :strict}
+    binary_op_to_algebra(:when, "when", left, right, state, nil, 4)
   end
 
   defp clause_args_to_algebra(args, state) do
@@ -807,7 +824,7 @@ defmodule CodeFormatter do
   ## Algebra helpers
 
   defp surround(left, doc, right) do
-    group(glue(nest(glue(left, "", doc), 2), "", right), :strict)
+    group(glue(nest(glue(left, "", doc), 2), "", right))
   end
 
   # TODO: Perform simple check for all data structures

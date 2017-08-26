@@ -116,7 +116,7 @@ defmodule CodeFormatterTest do
     test "with a single clause and arguments" do
       assert_format "fn  x ,y-> x + y  end", "fn x, y -> x + y end"
 
-      # TODO: x -> should be in the same line
+      # TODO: fn x -> should be in the same line
       bad = "fn x -> foo(x) end"
       good = """
       fn
@@ -218,6 +218,43 @@ defmodule CodeFormatterTest do
       end
       """
       assert_format long, good, @medium_length
+    end
+
+    @tag :skip
+    test "inside a call" do
+      assert_same """
+      foo(fn x -> y end)
+      """
+
+      assert_same """
+      foo(fn
+        a1 -> :ok
+        b2 -> :error
+      end)
+      """
+
+      assert_same """
+      foo(bar, fn
+        a1 -> :ok
+        b2 -> :error
+      end)
+      """
+
+      assert_same """
+      foo(fn
+        x ->
+          y
+      end)
+      """, @short_length
+
+      assert_same """
+      foo(bar, fn
+        a1 ->
+          :ok
+        b2 ->
+          :really_long_error
+      end)
+      """, @medium_length
     end
 
     test "uses block context for the body of each clause" do
