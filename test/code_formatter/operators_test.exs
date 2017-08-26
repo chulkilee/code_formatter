@@ -526,6 +526,30 @@ defmodule CodeFormatter.OperatorsTest do
         '''
       """, @short_length
     end
+
+    test "with anonymous functions" do
+      bad = "var = fn arg1 -> body1; arg2 -> body2 end"
+
+      good = """
+      var =
+        fn
+          arg1 ->
+            body1
+          arg2 ->
+            body2
+        end
+      """
+      assert_format bad, good, @short_length
+
+      good = """
+      var =
+        fn
+          arg1 -> body1
+          arg2 -> body2
+        end
+      """
+      assert_format bad, good, @medium_length
+    end
   end
 
   describe "module attributes" do

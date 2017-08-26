@@ -53,7 +53,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line()), @double_heredoc)
+        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line(true)), @double_heredoc)
       true ->
         interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
@@ -65,7 +65,7 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         remote_to_algebra(quoted, state)
       meta[:format] == :list_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line()), @single_heredoc)
+        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line(true)), @single_heredoc)
       true ->
         interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
@@ -102,7 +102,7 @@ defmodule CodeFormatter do
     case meta[:format] do
       :list_heredoc ->
         string = list |> List.to_string |> escape_string(:none)
-        {@single_heredoc |> line(string) |> concat(@single_heredoc), state}
+        {@single_heredoc |> line(string, true) |> concat(@single_heredoc), state}
       :charlist ->
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
@@ -115,7 +115,7 @@ defmodule CodeFormatter do
        when is_binary(string) do
     if meta[:format] == :bin_heredoc do
       string = escape_string(string, :none)
-      {@double_heredoc |> line(string) |> concat(@double_heredoc), state}
+      {@double_heredoc |> line(string, true) |> concat(@double_heredoc), state}
     else
       string = escape_string(string, @double_quote)
       {@double_quote |> concat(string) |> concat(@double_quote), state}
@@ -693,7 +693,7 @@ defmodule CodeFormatter do
   # end
   defp anon_fun_to_algebra(clauses, state) do
     {clauses_docs, state} = clauses_to_algebra(clauses, state)
-    {line(nest(line("fn", clauses_docs), 2), "end"), state}
+    {line(nest(line("fn", group(clauses_docs, :strict), true), 2), "end"), state}
   end
 
   defp clauses_to_algebra([clause | [_ | _] = clauses], state) do
@@ -708,7 +708,7 @@ defmodule CodeFormatter do
   defp split_clause_to_algebra({:"->", _, [[_ | _] = args, body]}, state) do
     {args_doc, state} = args_to_algebra(args, &quoted_to_algebra(&1, :argument, &2), state)
     {body_doc, state} = quoted_to_algebra(body, :block, state)
-    {args_doc |> concat(" ->") |> line(body_doc) |> nest(2), state}
+    {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
   ## Quoted helpers

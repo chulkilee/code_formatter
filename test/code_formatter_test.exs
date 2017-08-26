@@ -115,6 +115,7 @@ defmodule CodeFormatterTest do
     test "with a single clause and arguments" do
       assert_format "fn  x ,y-> x + y  end", "fn x, y -> x + y end"
 
+      # TODO: x -> should be in the same line
       bad = "fn x -> foo(x) end"
       good = """
       fn
@@ -139,9 +140,27 @@ defmodule CodeFormatterTest do
     test "with multiple clauses" do
       assert_same """
       fn
-        argument1 ->
+        1 -> :ok
+        2 -> :ok
+      end
+      """, @short_length
+
+      assert_same """
+      fn
+        1 ->
+          :ok
+        2 ->
+          :error
+      end
+      """, @short_length
+
+      assert_same """
+      fn
+        arg11,
+        arg12 ->
           body1
-        argument2 ->
+        arg21,
+        arg22 ->
           body2
       end
       """, @short_length
