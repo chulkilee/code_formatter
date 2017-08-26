@@ -60,7 +60,8 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@double_heredoc, line(:hard)), @double_heredoc)
+        initial = concat(@double_heredoc, line(:hard))
+        interpolation_to_algebra(entries, :none, state, initial, @double_heredoc)
       true ->
         interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
@@ -72,7 +73,8 @@ defmodule CodeFormatter do
       not interpolated?(entries) ->
         remote_to_algebra(quoted, state)
       meta[:format] == :list_heredoc ->
-        interpolation_to_algebra(entries, :none, state, concat(@single_heredoc, line(:hard)), @single_heredoc)
+        initial = concat(@single_heredoc, line(:hard))
+        interpolation_to_algebra(entries, :none, state, initial, @single_heredoc)
       true ->
         interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
@@ -171,7 +173,7 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({var, _meta, var_context}, _context, state)
        when is_atom(var_context) do
-    {Atom.to_string(var), state}
+    {var |> Atom.to_string() |> string(), state}
   end
 
   # &1
@@ -362,12 +364,12 @@ defmodule CodeFormatter do
   defp module_attribute_to_algebra({name, _meta, [value]} = arg, context, state)
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
-      attr_doc = "@" <> Atom.to_string(name)
+      attr_doc = string("@" <> Atom.to_string(name))
       {value_doc, state} = quoted_to_algebra(value, :argument, state)
 
       case context do
         :argument ->
-          {concat(concat(attr_doc <> "(", value_doc), ")"), state}
+          {concat(concat(concat(attr_doc, "("), value_doc), ")"), state}
         :block ->
           {space(attr_doc, value_doc), state}
       end
@@ -392,12 +394,12 @@ defmodule CodeFormatter do
       when is_atom(name) and is_integer(arity) do
     {doc, state} = remote_target_to_algebra(target, state)
     name = Code.Identifier.inspect_as_function(name)
-    {"&" |> concat(doc) |> nest(3) |> concat(".#{name}/#{arity}"), state}
+    {"&" |> concat(doc) |> nest(3) |> concat(string(".#{name}/#{arity}")), state}
   end
 
   defp capture_to_algebra({:/, _, [{name, _, context}, {:__block__, _, [arity]}]}, state)
        when is_atom(name) and is_atom(context) and is_integer(arity) do
-    {"&#{name}/#{arity}", state}
+    {string("&#{name}/#{arity}"), state}
   end
 
   defp capture_to_algebra(arg, state) do
@@ -418,7 +420,7 @@ defmodule CodeFormatter do
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state)
        when is_atom(fun) do
-    fun_doc = Code.Identifier.inspect_as_function(fun)
+    fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
     remote_to_algebra(target, fun_doc, args, state, 2)
   end
 
@@ -436,7 +438,7 @@ defmodule CodeFormatter do
 
   defp remote_target_to_algebra({{:., _, [target, fun]}, _, args}, state)
        when is_atom(fun) do
-    fun_doc = Code.Identifier.inspect_as_function(fun)
+    fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
     remote_to_algebra(target, fun_doc, args, state, 0)
   end
 
@@ -450,7 +452,7 @@ defmodule CodeFormatter do
 
   # function(arguments)
   defp local_to_algebra(fun, args, state) when is_atom(fun) do
-    call_args_to_algebra(Atom.to_string(fun), args, state)
+    call_args_to_algebra(fun |> Atom.to_string() |> string(), args, state)
   end
 
   defp call_args_to_algebra(fun_doc, [], state) do
@@ -594,9 +596,9 @@ defmodule CodeFormatter do
 
     case Code.Identifier.classify(atom) do
       type when type in [:callable_local, :callable_operator, :not_callable] ->
-        IO.iodata_to_binary [?:, string]
+        [?:, string] |> IO.iodata_to_binary |> string()
       _ ->
-        IO.iodata_to_binary [?:, ?", escape_string(string, "\""), ?"]
+        [?:, ?", String.replace(string, "\"", "\\\""), ?"] |> IO.iodata_to_binary |> string()
     end
   end
 
@@ -651,6 +653,7 @@ defmodule CodeFormatter do
     string
     |> String.split("\n")
     |> Enum.reverse()
+    |> Enum.map(&string/1)
     |> Enum.reduce(&line/2)
   end
 

@@ -143,8 +143,11 @@ defmodule CodeFormatter.LiteralsTest do
     end
 
     test "with interpolation" do
+      assert_same ~S["one #{} three"]
       assert_same ~S["one #{2} three"]
-      # Interpolation uses block context
+    end
+
+    test "with interpolation uses block content" do
       assert_format ~S["one #{@two(three)}"], ~S["one #{@two three}"]
     end
 
@@ -164,6 +167,12 @@ defmodule CodeFormatter.LiteralsTest do
       """
 
       assert_format bad, good, @short_length
+    end
+
+    test "is measured in graphemes" do
+      assert_same ~S"""
+      "áá#{0}áá"
+      """, @short_length
     end
 
     test "literal new lines don't count towards line limit" do
