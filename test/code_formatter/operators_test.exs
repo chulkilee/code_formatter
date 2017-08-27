@@ -475,6 +475,26 @@ defmodule CodeFormatter.OperatorsTest do
       ) = var
       """
       assert_format bad, good, @short_length
+
+      bad = "fun(foo, bar) = fun(baz, bat)"
+      good = """
+      fun(
+        foo,
+        bar
+      ) =
+        fun(
+          baz,
+          bat
+        )
+      """
+      assert_format bad, good, @short_length
+
+      bad = "fun(foo, bar) = fun(baz, bat)"
+      good = """
+      fun(foo, bar) =
+        fun(baz, bat)
+      """
+      assert_format bad, good, @medium_length
     end
 
     test "with containers" do
@@ -541,6 +561,16 @@ defmodule CodeFormatter.OperatorsTest do
       end
       """
       assert_format bad, good, @medium_length
+    end
+
+    test "with do-end blocks" do
+      assert_same """
+      var =
+        case true do
+          foo -> bar
+          baz -> bat
+        end
+      """
     end
   end
 

@@ -6,7 +6,7 @@ defmodule CodeFormatter.CallsTest do
   @short_length [line_length: 10]
   @medium_length [line_length: 20]
 
-  describe "next break fits" do
+  describe "cancel break" do
     test "does not apply to function calls" do
       bad = "foo(very_long_call(bar))"
       good = """
@@ -353,6 +353,171 @@ defmodule CodeFormatter.CallsTest do
         bar: 2
       )
       """, @short_length
+    end
+  end
+
+  describe "do end blocks" do
+    test "with non-block keywords" do
+      bad = "foo do: nil"
+      good = """
+      foo do
+        nil
+      end
+      """
+      assert_format bad, good
+
+      assert_same "foo(do: this, other: that)"
+    end
+
+    test "with multiple keywords" do
+      bad = """
+      foo do
+        :do
+      else
+        :else
+      rescue
+        :rescue
+      catch
+        :catch
+      after
+        :after
+      end
+      """
+
+      good = """
+      foo do
+        :do
+      rescue
+        :rescue
+      catch
+        :catch
+      else
+        :else
+      after
+        :after
+      end
+      """
+
+      assert_format bad, good
+    end
+
+    test "with multiple keywords and arrows" do
+      assert_same """
+      foo do
+        a1 -> a2
+        b1 -> b2
+      rescue
+        a1 -> a2
+        b1 -> b2
+      catch
+        a1 -> a2
+        b1 -> b2
+      else
+        a1 -> a2
+        b1 -> b2
+      after
+        a1 -> a2
+        b1 -> b2
+      end
+      """
+    end
+
+    test "with no extra arguments" do
+      bad = "foo do end"
+      good = """
+      foo do
+        nil
+      end
+      """
+      assert_format bad, good
+    end
+
+    test "with no extra arguments and line breaks" do
+      assert_same """
+      foo do
+        a1 ->
+          really_long_line
+        b1 ->
+          b2
+      rescue
+        c1
+      catch
+        d1 ->
+          d1
+        e1 ->
+          e1
+      else
+        f2
+      after
+        g1 ->
+          really_long_line
+        h1 ->
+          h2
+      end
+      """, @medium_length
+    end
+
+    test "with extra arguments" do
+      bad = "foo bar, baz do end"
+      good = """
+      foo bar, baz do
+        nil
+      end
+      """
+      assert_format bad, good
+    end
+
+    test "with extra arguments and line breaks" do
+      assert_same """
+      foo bar,
+          baz do
+        a1 ->
+          really_long_line
+        b1 ->
+          b2
+      rescue
+        c1
+      catch
+        d1 ->
+          d1
+        e1 ->
+          e1
+      else
+        f2
+      after
+        g1 ->
+          really_long_line
+        h1 ->
+          h2
+      end
+      """, @medium_length
+
+      assert_same """
+      foo really,
+          long,
+          list,
+          of,
+          arguments do
+        a1 ->
+          really_long_line
+        b1 ->
+          b2
+      rescue
+        c1
+      catch
+        d1 ->
+          d1
+        e1 ->
+          e1
+      else
+        f2
+      after
+        g1 ->
+          really_long_line
+        h1 ->
+          h2
+      end
+      """, @medium_length
     end
   end
 end
