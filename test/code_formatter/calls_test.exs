@@ -469,8 +469,7 @@ defmodule CodeFormatter.CallsTest do
 
     test "with extra arguments and line breaks" do
       assert_same """
-      foo bar,
-          baz do
+      foo bar, baz do
         a1 ->
           really_long_line
         b1 ->

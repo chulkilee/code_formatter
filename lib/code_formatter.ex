@@ -530,7 +530,7 @@ defmodule CodeFormatter do
         end
 
       {blocks_doc, state} = do_end_blocks_to_algebra(blocks, state)
-      call_doc = call_doc |> space(blocks_doc) |> line("end") |> force_break()
+      call_doc = call_doc |> space(cancel_break(blocks_doc)) |> line("end") |> force_break()
 
       if context == :argument do
         {concat(concat("(", call_doc), ")"), state}
