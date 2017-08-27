@@ -123,6 +123,14 @@ defmodule CodeFormatter.CallsTest do
       ''')
       """
     end
+
+    test "with calls without parens" do
+      assert_same """
+      import :hello, foo: foo, bar: '''
+      baz
+      '''
+      """
+    end
   end
 
   describe "local calls" do
@@ -169,6 +177,27 @@ defmodule CodeFormatter.CallsTest do
         bar: 2
       )
       """, @short_length
+    end
+
+    test "without parens" do
+      assert_same "import :foo, :bar"
+    end
+
+    test "without parens on line limit" do
+      bad = "import :long_atom, :other_arg"
+      good = """
+      import :long_atom,
+             :other_arg
+      """
+      assert_format bad, good, @short_length
+
+      bad = "import 123, opts: [foo: :bar]"
+      good = """
+      import 123, opts: [
+        foo: :bar
+      ]
+      """
+      assert_format bad, good, @medium_length
     end
   end
 

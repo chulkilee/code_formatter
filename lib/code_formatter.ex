@@ -21,6 +21,37 @@ defmodule CodeFormatter do
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
                                        :^^^, :in, :++, :--, :.., :<>]
 
+  @locals_without_parens [
+    # Special forms
+    alias: 1,
+    alias: 2,
+    import: 1,
+    import: 2,
+    with: :*,
+    for: :*,
+
+    # Kernel
+    def: 1,
+    def: 2,
+    defp: 1,
+    defp: 2,
+    defmacro: 1,
+    defmacro: 2,
+    defmacrop: 1,
+    defmacrop: 2,
+    defdelegate: 1,
+    defexception: 1,
+    defoverridable: 1,
+    defstruct: 1,
+    raise: 1,
+    raise: 2,
+
+    # Testing
+    all: :*,
+    assert: 1,
+    assert: 2
+  ]
+
   @doc """
   Formats the given code `string`.
   """
@@ -35,15 +66,15 @@ defmodule CodeFormatter do
   @doc """
   Converts `string` to an algebra document.
   """
-  def to_algebra(string, _opts \\ []) do
+  def to_algebra(string, opts \\ []) do
     string
     |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
-    |> block_to_algebra(state())
+    |> block_to_algebra(state(opts))
     |> elem(0)
   end
 
-  defp state do
-    %{}
+  defp state(_opts) do
+    %{locals_without_parens: @locals_without_parens}
   end
 
   # Special AST nodes from compiler feedback.
@@ -143,8 +174,8 @@ defmodule CodeFormatter do
   end
 
   defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, _, [_] = args}]},
-                         _context, state) do
-    {doc, state} = local_to_algebra(:unquote_splicing, args, state)
+                         context, state) do
+    {doc, state} = local_to_algebra(:unquote_splicing, context, args, state)
     {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
@@ -191,12 +222,12 @@ defmodule CodeFormatter do
     anon_fun_to_algebra(clauses, state)
   end
 
-  defp quoted_to_algebra({fun, meta, args}, _context, state)
+  defp quoted_to_algebra({fun, meta, args}, context, state)
        when is_atom(fun) and is_list(args) do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
          :error <- maybe_unary_op_to_algebra(fun, args, state),
          :error <- maybe_binary_op_to_algebra(fun, args, state),
-         do: local_to_algebra(fun, args, state)
+         do: local_to_algebra(fun, context, args, state)
   end
 
   defp quoted_to_algebra({{:., _, [_, _]}, _, _} = quoted, _context, state) do
@@ -446,13 +477,16 @@ defmodule CodeFormatter do
 
   defp remote_to_algebra(target, fun_doc, args, state, nesting) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {call_doc, state} = call_args_to_algebra(fun_doc, args, state)
-    doc = nest(glue(concat(target_doc, "."), "", next_break_fits(call_doc)), nesting, :break)
+    {call_doc, state} = call_args_to_algebra(fun_doc, args, false, state)
+    doc =
+      target_doc
+      |> concat(".")
+      |> glue("", next_break_fits(call_doc))
+      |> nest(nesting, :break)
     {doc, state}
   end
 
-  defp remote_target_to_algebra({{:., _, [target, fun]}, _, args}, state)
-       when is_atom(fun) do
+  defp remote_target_to_algebra({{:., _, [target, fun]}, _, args}, state) when is_atom(fun) do
     fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
     remote_to_algebra(target, fun_doc, args, state, 0)
   end
@@ -466,15 +500,17 @@ defmodule CodeFormatter do
   end
 
   # function(arguments)
-  defp local_to_algebra(fun, args, state) when is_atom(fun) do
-    call_args_to_algebra(fun |> Atom.to_string() |> string(), args, state)
+  defp local_to_algebra(fun, context, args, state) when is_atom(fun) do
+    fun_doc = fun |> Atom.to_string() |> string()
+    skip_parens? = context == :block and skip_parens?(fun, args, state)
+    call_args_to_algebra(fun_doc, args, skip_parens?, state)
   end
 
-  defp call_args_to_algebra(fun_doc, [], state) do
+  defp call_args_to_algebra(fun_doc, [], _skip_parens?, state) do
     {concat(fun_doc, "()"), state}
   end
 
-  defp call_args_to_algebra(fun_doc, args, state) do
+  defp call_args_to_algebra(fun_doc, args, skip_parens?, state) do
     {left, [right]} = args |> splat_keywords_list |> Enum.split(-1)
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
     {right_doc, state} = quoted_to_algebra(right, :argument, state)
@@ -493,8 +529,26 @@ defmodule CodeFormatter do
         glue(concat(left_doc, ","), right_doc)
       end
 
-    call_doc = surround(concat(fun_doc, "("), args_doc, ")", :break)
+    call_doc =
+      if skip_parens? do
+        fun_doc
+        |> concat(" ")
+        |> concat(nest(args_doc, :cursor, :break))
+        |> group()
+      else
+        fun_doc
+        |> concat("(")
+        |> surround(args_doc, ")", :break)
+      end
+
     {call_doc, state}
+  end
+
+  defp skip_parens?(fun, args, %{locals_without_parens: locals_without_parens}) do
+    length = length(args)
+    length > 0 and Enum.any?(locals_without_parens, fn {key, val} ->
+      key == fun and (val == :* or val == length)
+    end)
   end
 
   ## Interpolation
