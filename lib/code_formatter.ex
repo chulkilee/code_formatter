@@ -238,6 +238,12 @@ defmodule CodeFormatter do
     remote_to_algebra(quoted, state)
   end
 
+  # [keyword: :list]
+  defp quoted_to_algebra(list, _context, state) when is_list(list) do
+    args_to_algebra(list, state, &quoted_to_algebra(&1, :argument, &2))
+  end
+
+  # keyword: :list
   defp quoted_to_algebra({left, right}, _context, state) do
     {right, state} = quoted_to_algebra(right, :argument, state)
     {left |> Code.Identifier.inspect_as_key() |> string() |> concat(right), state}
@@ -511,7 +517,16 @@ defmodule CodeFormatter do
   end
 
   defp call_args_to_algebra(fun_doc, args, skip_parens?, state) do
-    {left, [right]} = args |> splat_keywords_list |> Enum.split(-1)
+    {left, right} = split_last(args)
+
+    {left, right} =
+      if is_list(right) do
+        {kw_left, kw_right} = split_last(right)
+        {left ++ kw_left, kw_right}
+      else
+        {left, right}
+      end
+
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
     {right_doc, state} = quoted_to_algebra(right, :argument, state)
 
@@ -667,7 +682,6 @@ defmodule CodeFormatter do
   end
 
   defp tuple_to_algebra(args, state) do
-    args = splat_keywords_list(args)
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {container(args, "{", args_doc, "}"), state}
   end
@@ -814,7 +828,7 @@ defmodule CodeFormatter do
 
   # fn a, b, c when d -> e end
   defp clause_args_to_algebra([{:when, _, args}], state) do
-    {args, [right]} = Enum.split(args, -1)
+    {args, right} = split_last(args)
     left = {:special, :arguments, args}
     binary_op_to_algebra(:when, "when", left, right, state, nil, 4)
   end
@@ -862,15 +876,6 @@ defmodule CodeFormatter do
       {arg_doc, state_acc} = fun.(arg, state_acc)
       {glue(concat(doc_acc, ","), arg_doc), state_acc}
     end)
-  end
-
-  defp splat_keywords_list(args) do
-    {left, [right]} = Enum.split(args, -1)
-    if Keyword.keyword?(right) do
-      left ++ right
-    else
-      args
-    end
   end
 
   defp module_attribute_read?({:@, _, [{var, _, var_context}]})
@@ -951,5 +956,10 @@ defmodule CodeFormatter do
 
   defp nest_by_length(doc, string) do
     nest(doc, String.length(string))
+  end
+
+  defp split_last(list) do
+    {left, [right]} = Enum.split(list, -1)
+    {left, right}
   end
 end
