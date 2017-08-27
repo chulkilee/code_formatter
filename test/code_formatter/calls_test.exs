@@ -19,6 +19,16 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @short_length
     end
 
+    test "does not apply to strings" do
+      bad = "foo(\"very long string\")"
+      good = """
+      foo(
+        "very long string"
+      )
+      """
+      assert_format bad, good, @short_length
+    end
+
     test "for functions" do
       assert_same """
       foo(fn x -> y end)
@@ -78,6 +88,32 @@ defmodule CodeFormatter.CallsTest do
       very long line does trigger another break
       ''')
       """, @short_length
+    end
+
+    test "for binaries" do
+      bad = "foo(<<1, 2, 3, 4>>)"
+      good = """
+      foo(<<
+        1,
+        2,
+        3,
+        4
+      >>)
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "for lists" do
+      bad = "foo([1, 2, 3, 4])"
+      good = """
+      foo([
+        1,
+        2,
+        3,
+        4
+      ])
+      """
+      assert_format bad, good, @short_length
     end
   end
 

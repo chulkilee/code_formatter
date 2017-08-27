@@ -838,10 +838,8 @@ defmodule CodeFormatter do
     surround(left, doc, right)
   end
 
-  # TODO: Add lists, tuples, maps and binaries
-
-  defp apply_next_break_fits?({:<<>>, meta, [_ | _]}) do
-    meta[:format] == :bin_heredoc
+  defp apply_next_break_fits?({:<<>>, meta, [_ | _] = entries}) do
+    meta[:format] == :bin_heredoc or not interpolated?(entries)
   end
 
   defp apply_next_break_fits?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
@@ -853,10 +851,10 @@ defmodule CodeFormatter do
   end
 
   defp apply_next_break_fits?({:__block__, meta, [list]}) when is_list(list) do
-    meta[:format] == :list_heredoc
+    meta[:format] != :charlist
   end
 
-  defp apply_next_break_fits?({:fn, _, [_ | _]}) do
+  defp apply_next_break_fits?({form, _, [_ | _]}) when form in [:fn, :%{}, :%] do
     true
   end
 
