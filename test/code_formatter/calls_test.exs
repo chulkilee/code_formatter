@@ -198,6 +198,15 @@ defmodule CodeFormatter.CallsTest do
       ]
       """
       assert_format bad, good, @medium_length
+
+      bad = "import :long_atom, opts: [foo: :bar]"
+      good = """
+      import :long_atom,
+             opts: [
+               foo: :bar
+             ]
+      """
+      assert_format bad, good, @medium_length
     end
   end
 
