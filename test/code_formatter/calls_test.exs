@@ -115,6 +115,14 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "with keyword lists" do
+      assert_same """
+      foo(:hello, foo: foo, bar: '''
+      baz
+      ''')
+      """
+    end
   end
 
   describe "local calls" do
@@ -147,6 +155,20 @@ defmodule CodeFormatter.CallsTest do
       )
       """
       assert_format bad, good, @short_length
+    end
+
+    test "with keyword lists" do
+      assert_same "foo(foo: 1, bar: 2)"
+
+      assert_same "foo(:hello, foo: 1, bar: 2)"
+
+      assert_same """
+      foo(
+        :hello,
+        foo: 1,
+        bar: 2
+      )
+      """, @short_length
     end
   end
 
@@ -182,12 +204,11 @@ defmodule CodeFormatter.CallsTest do
       MyModule.Foo.bar(:one, :two, :three)
       """
       good = """
-      MyModule.Foo.
-        bar(
-          :one,
-          :two,
-          :three
-        )
+      MyModule.Foo.bar(
+        :one,
+        :two,
+        :three
+      )
       """
       assert_format bad, good, @medium_length
 
@@ -205,6 +226,29 @@ defmodule CodeFormatter.CallsTest do
 
     test "doesn't split on parens on empty arguments" do
       assert_same "Mod.func()", @short_length
+    end
+
+    test "with keyword lists" do
+      assert_same "mod.foo(foo: 1, bar: 2)"
+
+      assert_same "mod.foo(:hello, foo: 1, bar: 2)"
+
+      assert_same """
+      mod.foo(
+        :hello,
+        foo: 1,
+        bar: 2
+      )
+      """, @short_length
+
+      assert_same """
+      really_long_module_name.
+        foo(
+          :hello,
+          foo: 1,
+          bar: 2
+        )
+      """, @short_length
     end
   end
 
@@ -257,6 +301,20 @@ defmodule CodeFormatter.CallsTest do
         (5, 6)
       """
       assert_format bad, good, @short_length
+    end
+
+    test "with keyword lists" do
+      assert_same "foo.(foo: 1, bar: 2)"
+
+      assert_same "foo.(:hello, foo: 1, bar: 2)"
+
+      assert_same """
+      foo.(
+        :hello,
+        foo: 1,
+        bar: 2
+      )
+      """, @short_length
     end
   end
 end

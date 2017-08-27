@@ -6,8 +6,6 @@ defmodule CodeFormatter.ContainersTest do
   @short_length [line_length: 10]
 
   describe "tuples" do
-    # TODO: Test tuple with keywords as last element
-
     test "without arguments" do
       assert_format "{ }", "{}"
     end
@@ -34,11 +32,24 @@ defmodule CodeFormatter.ContainersTest do
       assert_format "{1,}", "{1}"
       assert_format "{1, 2, 3,}", "{1, 2, 3}"
     end
+
+    test "with keyword lists" do
+      # The one below is not valid syntax
+      # assert_same "{foo: 1, bar: 2}"
+
+      assert_same "{:hello, foo: 1, bar: 2}"
+
+      assert_same """
+      {
+        :hello,
+        foo: 1,
+        bar: 2
+      }
+      """, @short_length
+    end
   end
 
   describe "lists" do
-    # TODO: Test list that finishes with keywords entries
-
     test "empty" do
       assert_format "[ ]", "[]"
       assert_format "[\n]", "[]"
@@ -94,6 +105,21 @@ defmodule CodeFormatter.ContainersTest do
     test "removes trailing comma" do
       assert_format "[1,]", "[1]"
       assert_format "[1, 2, 3,]", "[1, 2, 3]"
+    end
+
+    test "with keyword lists" do
+      assert_same "[foo: 1, bar: 2]"
+      assert_same "[:hello, foo: 1, bar: 2]"
+
+      # Pseudo keyword lists are kept as is
+      assert_same "[{:foo, 1}, {:bar, 2}]"
+
+      assert_same """
+      [
+        foo: 1,
+        bar: 2
+      ]
+      """, @short_length
     end
   end
 

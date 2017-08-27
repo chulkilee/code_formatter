@@ -207,6 +207,11 @@ defmodule CodeFormatter do
     remote_to_algebra(quoted, state)
   end
 
+  defp quoted_to_algebra({left, right}, _context, state) do
+    {right, state} = quoted_to_algebra(right, :argument, state)
+    {left |> Code.Identifier.inspect_as_key() |> string() |> concat(right), state}
+  end
+
   ## Blocks
 
   defp block_to_algebra(block, state) do
@@ -429,8 +434,7 @@ defmodule CodeFormatter do
   ## Calls (local, remote and anonymous)
 
   # expression.function(arguments)
-  defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state)
-       when is_atom(fun) do
+  defp remote_to_algebra({{:., _, [target, fun]}, _, args}, state) when is_atom(fun) do
     fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
     remote_to_algebra(target, fun_doc, args, state, 2)
   end
@@ -443,7 +447,7 @@ defmodule CodeFormatter do
   defp remote_to_algebra(target, fun_doc, args, state, nesting) do
     {target_doc, state} = remote_target_to_algebra(target, state)
     {call_doc, state} = call_args_to_algebra(fun_doc, args, state)
-    doc = nest(glue(concat(target_doc, "."), "", call_doc), nesting)
+    doc = nest(glue(concat(target_doc, "."), "", next_break_fits(call_doc)), nesting, :break)
     {doc, state}
   end
 
@@ -471,7 +475,7 @@ defmodule CodeFormatter do
   end
 
   defp call_args_to_algebra(fun_doc, args, state) do
-    {left, [right]} = Enum.split(args, -1)
+    {left, [right]} = args |> splat_keywords_list |> Enum.split(-1)
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
     {right_doc, state} = quoted_to_algebra(right, :argument, state)
 
@@ -595,6 +599,10 @@ defmodule CodeFormatter do
 
   ## Literals
 
+  defp list_to_algebra([], state) do
+    {"[]", state}
+  end
+
   defp list_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {container(args, "[", args_doc, "]"), state}
@@ -605,6 +613,7 @@ defmodule CodeFormatter do
   end
 
   defp tuple_to_algebra(args, state) do
+    args = splat_keywords_list(args)
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     {container(args, "{", args_doc, "}"), state}
   end
@@ -801,6 +810,15 @@ defmodule CodeFormatter do
     end)
   end
 
+  defp splat_keywords_list(args) do
+    {left, [right]} = Enum.split(args, -1)
+    if Keyword.keyword?(right) do
+      left ++ right
+    else
+      args
+    end
+  end
+
   defp module_attribute_read?({:@, _, [{var, _, var_context}]})
        when is_atom(var) and is_atom(var_context) do
     Code.Identifier.classify(var) == :callable_local
@@ -861,6 +879,10 @@ defmodule CodeFormatter do
   defp apply_next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
     meta[:terminator] in [@double_heredoc, @single_heredoc] and
       (fun |> Atom.to_string() |> String.starts_with?("sigil_"))
+  end
+
+  defp apply_next_break_fits?({atom, expr}) when is_atom(atom) do
+    apply_next_break_fits?(expr)
   end
 
   defp apply_next_break_fits?(_) do
