@@ -6,6 +6,81 @@ defmodule CodeFormatter.CallsTest do
   @short_length [line_length: 10]
   @medium_length [line_length: 20]
 
+  describe "next break fits" do
+    test "does not apply to function calls" do
+      bad = "foo(very_long_call(bar))"
+      good = """
+      foo(
+        very_long_call(
+          bar
+        )
+      )
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "for functions" do
+      assert_same """
+      foo(fn x -> y end)
+      """
+
+      assert_same """
+      foo(fn
+        a1 -> :ok
+        b2 -> :error
+      end)
+      """
+
+      assert_same """
+      foo(bar, fn
+        a1 -> :ok
+        b2 -> :error
+      end)
+      """
+
+      assert_same """
+      foo(fn x ->
+        :really_long_atom
+      end)
+      """, @medium_length
+
+      assert_same """
+      foo(bar, fn
+        a1 ->
+          :ok
+        b2 ->
+          :really_long_error
+      end)
+      """, @medium_length
+    end
+
+    test "for heredocs" do
+      assert_same """
+      foo('''
+      bar
+      ''')
+      """
+
+      assert_same to_string('''
+      foo("""
+      bar
+      """)
+      ''')
+
+      assert_same """
+      foo(~S'''
+      bar
+      ''')
+      """
+
+      assert_same """
+      foo(~S'''
+      very long line does trigger another break
+      ''')
+      """, @short_length
+    end
+  end
+
   describe "local calls" do
     test "without arguments" do
       assert_format "foo( )", "foo()"

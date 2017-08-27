@@ -509,17 +509,15 @@ defmodule CodeFormatter.OperatorsTest do
 
     test "with heredoc" do
       assert_same ~S"""
-      var =
-        '''
-        one
-        '''
+      var = '''
+      one
+      '''
       """, @short_length
 
       assert_same ~S"""
-      var =
-        '''
-        #{one}
-        '''
+      var = '''
+      #{one}
+    '''
       """, @short_length
     end
 
@@ -527,22 +525,20 @@ defmodule CodeFormatter.OperatorsTest do
       bad = "var = fn arg1 -> body1; arg2 -> body2 end"
 
       good = """
-      var =
-        fn
-          arg1 ->
-            body1
-          arg2 ->
-            body2
-        end
+      var = fn
+        arg1 ->
+          body1
+        arg2 ->
+          body2
+      end
       """
       assert_format bad, good, @short_length
 
       good = """
-      var =
-        fn
-          arg1 -> body1
-          arg2 -> body2
-        end
+      var = fn
+        arg1 -> body1
+        arg2 -> body2
+      end
       """
       assert_format bad, good, @medium_length
     end

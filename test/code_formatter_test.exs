@@ -217,41 +217,6 @@ defmodule CodeFormatterTest do
       assert_format long, good, @medium_length
     end
 
-    test "inside a call" do
-      assert_same """
-      foo(fn x -> y end)
-      """
-
-      assert_same """
-      foo(fn
-        a1 -> :ok
-        b2 -> :error
-      end)
-      """
-
-      assert_same """
-      foo(bar, fn
-        a1 -> :ok
-        b2 -> :error
-      end)
-      """
-
-      assert_same """
-      foo(fn x ->
-        :really_long_atom
-      end)
-      """, @medium_length
-
-      assert_same """
-      foo(bar, fn
-        a1 ->
-          :ok
-        b2 ->
-          :really_long_error
-      end)
-      """, @medium_length
-    end
-
     test "uses block context for the body of each clause" do
       assert_same "fn -> @foo bar end"
     end

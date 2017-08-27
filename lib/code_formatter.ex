@@ -307,8 +307,14 @@ defmodule CodeFormatter do
           doc = concat(glue(left, op_string), right)
           if op_info == parent_info, do: doc, else: group(doc)
         true ->
+          right =
+            if apply_next_break_fits?(right_arg) do
+              next_break_fits(right)
+            else
+              right
+            end
           op_string = " " <> op_string
-          concat(left, nest(flex_glue(op_string, group(right)), nesting))
+          concat(left, nest(flex_glue(op_string, group(right)), nesting, :break))
       end
 
     {doc, state}
@@ -465,16 +471,22 @@ defmodule CodeFormatter do
   end
 
   defp call_args_to_algebra(fun_doc, args, state) do
-    {left, right} = Enum.split(args, -1)
+    {left, [right]} = Enum.split(args, -1)
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
-    {right_doc, state} = args_to_algebra(right, state, &quoted_to_algebra(&1, :argument, &2))
+    {right_doc, state} = quoted_to_algebra(right, :argument, state)
 
-    # TODO: Define explicitly when to use next_break_fits.
-    args_doc =
-      if left == [] do
+    right_doc =
+      if apply_next_break_fits?(right) do
         next_break_fits(right_doc)
       else
-        glue(concat(left_doc, ","), next_break_fits(right_doc))
+        right_doc
+      end
+
+    args_doc =
+      if left == [] do
+        right_doc
+      else
+        glue(concat(left_doc, ","), right_doc)
       end
 
     call_doc = surround(concat(fun_doc, "("), args_doc, ")", :break)
@@ -512,7 +524,7 @@ defmodule CodeFormatter do
   defp maybe_sigil_to_algebra(fun, meta, args, state) do
     case {Atom.to_string(fun), args} do
       {<<"sigil_", name>>, [{:<<>>, _, entries}, modifiers]} ->
-        opening_terminator = List.to_string(Keyword.fetch!(meta, :terminator))
+        opening_terminator = Keyword.fetch!(meta, :terminator)
         acc = <<?~, name, opening_terminator::binary>>
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
@@ -798,6 +810,10 @@ defmodule CodeFormatter do
   defp integer_capture?({:&, _, [integer]}) when is_integer(integer), do: true
   defp integer_capture?(_), do: false
 
+  defp operator?(quoted) do
+    unary_operator?(quoted) or binary_operator?(quoted)
+  end
+
   defp binary_operator?(quoted) do
     case quoted do
       {op, _, [_, _]} when is_atom(op) ->
@@ -816,14 +832,41 @@ defmodule CodeFormatter do
     end
   end
 
-  defp operator?(quoted) do
-    unary_operator?(quoted) or binary_operator?(quoted)
-  end
-
   # TODO: Perform simple check for all data structures
   # (calls not included).
   defp container(_args, left, doc, right) do
     surround(left, doc, right)
+  end
+
+  # TODO: Add lists, tuples, maps and binaries
+
+  defp apply_next_break_fits?({:<<>>, meta, [_ | _]}) do
+    meta[:format] == :bin_heredoc
+  end
+
+  defp apply_next_break_fits?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
+    meta[:format] == :list_heredoc
+  end
+
+  defp apply_next_break_fits?({:__block__, meta, [string]}) when is_binary(string) do
+    meta[:format] == :bin_heredoc
+  end
+
+  defp apply_next_break_fits?({:__block__, meta, [list]}) when is_list(list) do
+    meta[:format] == :list_heredoc
+  end
+
+  defp apply_next_break_fits?({:fn, _, [_ | _]}) do
+    true
+  end
+
+  defp apply_next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
+    meta[:terminator] in [@double_heredoc, @single_heredoc] and
+      (fun |> Atom.to_string() |> String.starts_with?("sigil_"))
+  end
+
+  defp apply_next_break_fits?(_) do
+    false
   end
 
   ## Algebra helpers
