@@ -221,4 +221,55 @@ defmodule CodeFormatterTest do
       assert_same "fn -> @foo bar end"
     end
   end
+
+  describe "blocks" do
+    test "with multiple lines" do
+      assert_same """
+      foo = bar
+      baz = bat
+      """
+    end
+
+    test "with multiple lines with line limit" do
+      assert_same """
+      foo =
+        bar(one)
+
+      baz =
+        bat(two)
+
+      last
+      """, @short_length
+
+      assert_same """
+      foo =
+        bar(one)
+
+      middle
+      baz =
+        bat(two)
+      """, @short_length
+
+      assert_same """
+      first
+
+      foo =
+        bar(one)
+
+      baz =
+        bat(two)
+      """, @short_length
+
+      assert_same """
+      foo =
+        bar(one)
+
+      abc =
+        def(ghi)
+
+      baz =
+        bat(two)
+      """, @short_length
+    end
+  end
 end

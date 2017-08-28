@@ -214,6 +214,11 @@ defmodule CodeFormatter do
     {"", state}
   end
 
+  defp quoted_to_algebra({:__block__, _, block}, _context, state) do
+    {block, state} = block_to_algebra(block, state)
+    {wrap_in_parens(block), state}
+  end
+
   defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, _context, state) do
     {doc, state} =
       if is_atom(head) do
@@ -286,8 +291,24 @@ defmodule CodeFormatter do
 
   ## Blocks
 
+  defp block_to_algebra({:__block__, _, [_, _ | _] = args}, state) do
+    {args, last} = split_last(args)
+
+    {args_doc, state} =
+      Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
+        {doc, state} = quoted_to_algebra(quoted, :block, state)
+        doc = doc |> concat(break("")) |> group()
+        {[doc | acc], state}
+      end)
+
+    {last_doc, state} = quoted_to_algebra(last, :block, state)
+    block_doc = Enum.reduce(args_doc, last_doc, &line/2)
+    {block_doc, state}
+  end
+
   defp block_to_algebra(block, state) do
-    quoted_to_algebra(block, :block, state)
+    {doc, state} = quoted_to_algebra(block, :block, state)
+    {group(doc), state}
   end
 
   ## Operators
