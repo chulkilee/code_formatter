@@ -750,6 +750,14 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @short_length
     end
 
+    test "do-end blocks keywords" do
+      assert_same """
+      (if true do
+         false
+       end)[key]
+      """
+    end
+
     test "with keywords" do
       assert_format "expr[foo: bar, baz: bat]", "expr[[foo: bar, baz: bat]]"
     end

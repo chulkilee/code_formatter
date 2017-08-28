@@ -155,7 +155,7 @@ defmodule CodeFormatter do
   # foo[bar]
   # TODO: Remove Access in favor of our own special form.
   defp quoted_to_algebra({{:., _, [Access, :get]}, _, [target | args]}, _context, state) do
-    {target_doc, state} = quoted_to_algebra_with_parens_if_necessary(target, :argument, state)
+    {target_doc, state} = remote_target_to_algebra(target, state)
     {call_doc, state} = list_to_algebra(args, state)
     {concat(target_doc, call_doc), state}
   end
@@ -305,10 +305,10 @@ defmodule CodeFormatter do
   # key => value
   defp quoted_to_algebra({left, right}, _context, state) do
     if keyword_key?(left) do
-      left =
+      {left, state} =
         case left do
           {:__block__, _, [atom]} when is_atom(atom) ->
-            atom |> Code.Identifier.inspect_as_key() |> string()
+            {atom |> Code.Identifier.inspect_as_key() |> string(), state}
           {{:., _, [:erlang, :binary_to_atom]}, _, [{:<<>>, _, entries}, :utf8]} ->
             interpolation_to_algebra(entries, @double_quote, state, "\"", "\": ")
         end
