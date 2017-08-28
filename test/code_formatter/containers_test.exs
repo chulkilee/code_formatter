@@ -153,8 +153,12 @@ defmodule CodeFormatter.ContainersTest do
     end
 
     test "add parens on first and last in case of ambiguity" do
+      assert_format "<< <<>> >>", "<<(<<>>)>>"
+      assert_format "<< <<>> + <<>> >>", "<<(<<>> + <<>>)>>"
+      assert_format "<< 1 + <<>> >>", "<<(1 + <<>>)>>"
+      assert_format "<< <<>> + 1 >>", "<<(<<>> + 1)>>"
       assert_format "<< <<>>, <<>>, <<>> >>", "<<(<<>>), <<>>, (<<>>)>>"
-      assert_format "<< <<>>::1, <<>>::2, <<>>::3 >>", "<<(<<>>)::1, <<>>::2, <<>>::3>>"
+      assert_format "<< <<>>::1, <<>>::2, <<>>::3 >>", "<<(<<>>::1), <<>>::2, <<>>::3>>"
     end
 
     test "with modifiers" do

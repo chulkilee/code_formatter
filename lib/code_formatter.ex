@@ -566,7 +566,7 @@ defmodule CodeFormatter do
     cond do
       binary_operator?(arg) ->
         {concat("& ", doc), state}
-      doc |> Inspect.Algebra.format(:infinity) |> IO.iodata_to_binary() |> String.starts_with?("&") ->
+      doc |> format_to_string() |> String.starts_with?("&") ->
         {concat("& ", doc), state}
       true ->
         {concat("&", doc), state}
@@ -812,18 +812,16 @@ defmodule CodeFormatter do
     {container(args, "<<", args_doc, ">>"), state}
   end
 
-  defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, _last) do
+  defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
-    doc = bitstring_wrap_parens(segment, doc, i == 0)
-
     {spec, state} = bitstring_spec_to_algebra(spec, state)
     doc = concat(concat(doc, "::"), wrap_in_parens_if_inspected_atom(spec))
-    {doc, state}
+    {bitstring_wrap_parens(doc, i, last), state}
   end
 
   defp bitstring_to_algebra({segment, i}, state, last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
-    {bitstring_wrap_parens(segment, doc, i == 0 or i == last), state}
+    {bitstring_wrap_parens(doc, i, last), state}
   end
 
   defp bitstring_spec_to_algebra({:-, _, [left, right]}, state) do
@@ -836,12 +834,19 @@ defmodule CodeFormatter do
     quoted_to_algebra_with_parens_if_necessary(spec, :argument, state)
   end
 
-  defp bitstring_wrap_parens({:<<>>, _, _}, doc, true) do
-    concat(concat("(", doc), ")")
-  end
+  defp bitstring_wrap_parens(doc, i, last) do
+    if i == 0 or i == last do
+      string = format_to_string(doc)
 
-  defp bitstring_wrap_parens(_, doc, _) do
-    doc
+      if i == 0 and String.starts_with?(string, "<<") or
+           i == last and String.ends_with?(string, ">>") do
+        concat(concat("(", doc), ")")
+      else
+        doc
+      end
+    else
+      doc
+    end
   end
 
   ## Literals
@@ -1234,6 +1239,10 @@ defmodule CodeFormatter do
   end
 
   ## Algebra helpers
+
+  defp format_to_string(doc) do
+    doc |> Inspect.Algebra.format(:infinity) |> IO.iodata_to_binary()
+  end
 
   defp surround(left, doc, right, nest \\ :always) do
     group(glue(nest(glue(left, "", doc), 2, nest), "", right))
