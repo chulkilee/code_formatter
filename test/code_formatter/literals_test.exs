@@ -110,6 +110,10 @@ defmodule CodeFormatter.LiteralsTest do
       assert_same ~S[:"one #{2} three"]
     end
 
+    test "with escapes and interpolation" do
+      assert_same ~S[:"one\n\"#{2}\"\nthree"]
+    end
+
     test "with interpolation on line limit" do
       bad = ~S"""
       :"one #{"two"} three"

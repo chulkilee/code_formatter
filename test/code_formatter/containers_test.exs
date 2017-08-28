@@ -134,6 +134,12 @@ defmodule CodeFormatter.ContainersTest do
       ]
       """, @short_length
     end
+
+    test "with quoted keyword lists" do
+      assert_same ~S(["with spaces": 1])
+      assert_same ~S(["one #{two} three": 1])
+      assert_format ~S(["Foo": 1, "Bar": 2]), ~S([Foo: 1, Bar: 2])
+    end
   end
 
   describe "bitstrings" do

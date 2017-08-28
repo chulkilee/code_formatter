@@ -10,7 +10,7 @@ for pattern <- patterns, path <- Path.wildcard(pattern) do
     IO.puts "equivalent"
   else
     IO.puts "not equivalent"
-    IO.write :stderr, pos
+    IO.puts :stderr, pos
     System.halt(1)
   end
 

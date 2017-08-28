@@ -302,16 +302,23 @@ defmodule CodeFormatter do
   end
 
   # keyword: :list
-  defp quoted_to_algebra({left, right}, _context, state) when is_atom(left) do
-    {right, state} = quoted_to_algebra(right, :argument, state)
-    {left |> Code.Identifier.inspect_as_key() |> string() |> concat(right), state}
-  end
-
   # key => value
   defp quoted_to_algebra({left, right}, _context, state) do
-    {left, state} = quoted_to_algebra(left, :argument, state)
-    {right, state} = quoted_to_algebra(right, :argument, state)
-    {left |> concat(" => ") |> concat(right), state}
+    if keyword_key?(left) do
+      left =
+        case left do
+          {:__block__, _, [atom]} when is_atom(atom) ->
+            atom |> Code.Identifier.inspect_as_key() |> string()
+          {{:., _, [:erlang, :binary_to_atom]}, _, [{:<<>>, _, entries}, :utf8]} ->
+            interpolation_to_algebra(entries, @double_quote, state, "\"", "\": ")
+        end
+      {right, state} = quoted_to_algebra(right, :argument, state)
+      {concat(left, right), state}
+    else
+      {left, state} = quoted_to_algebra(left, :argument, state)
+      {right, state} = quoted_to_algebra(right, :argument, state)
+      {left |> concat(" => ") |> concat(right), state}
+    end
   end
 
   ## Blocks
@@ -638,9 +645,9 @@ defmodule CodeFormatter do
   end
 
   defp call_args_to_algebra(args, context, skip_parens, state) do
-    {args, blocks} = split_last(args)
+    {args, last} = split_last(args)
 
-    if do_end_blocks?(blocks) do
+    if blocks = do_end_blocks(last, []) do
       {call_doc, state} =
         case args do
           [] ->
@@ -655,13 +662,13 @@ defmodule CodeFormatter do
       {{call_doc, state}, context == :argument}
     else
       skip_parens? = context == :block and skip_parens == :yes
-      {call_args_to_algebra_without_do_end_blocks(args, blocks, skip_parens?, state), false}
+      {call_args_to_algebra_without_do_end_blocks(args, last, skip_parens?, state), false}
     end
   end
 
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     {left, right} =
-      if Keyword.keyword?(right) do
+      if keyword?(right) do
         {kw_left, kw_right} = split_last(right)
         {left ++ kw_left, kw_right}
       else
@@ -1171,7 +1178,7 @@ defmodule CodeFormatter do
       (fun |> Atom.to_string() |> String.starts_with?("sigil_"))
   end
 
-  defp apply_cancel_break?({atom, expr}) when is_atom(atom) do
+  defp apply_cancel_break?({{:__block__, _, [atom]}, expr}) when is_atom(atom) do
     apply_cancel_break?(expr)
   end
 
@@ -1179,9 +1186,36 @@ defmodule CodeFormatter do
     false
   end
 
-  defp do_end_blocks?(arg) do
-    Keyword.keyword?(arg) and Keyword.has_key?(arg, :do) and
-      Enum.all?(arg, fn {key, _} -> key in @keywords end)
+  defp do_end_blocks([{{:__block__, meta, [atom]}, value} | list], acc) when atom in @keywords do
+    if Keyword.get(meta, :keyword, false) do
+      do_end_blocks(list, [{atom, value} | acc])
+    end
+  end
+
+  defp do_end_blocks([], acc) do
+    if Keyword.has_key?(acc, :do) do
+      acc
+    end
+  end
+
+  defp do_end_blocks(_not_a_list, _acc) do
+    nil
+  end
+
+  defp keyword?(args) do
+    is_list(args) and Enum.all?(args, fn {k, _} -> keyword_key?(k) end)
+  end
+
+  defp keyword_key?({:__block__, meta, [_]}) do
+    Keyword.get(meta, :keyword, false)
+  end
+
+  defp keyword_key?({{:., _, [:erlang, :binary_to_atom]}, _, [{:<<>>, meta, _}, :utf8]}) do
+    Keyword.get(meta, :keyword, false)
+  end
+
+  defp keyword_key?(_) do
+    false
   end
 
   ## Algebra helpers
