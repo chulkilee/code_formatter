@@ -520,7 +520,11 @@ defmodule CodeFormatter do
           binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
       end
     else
-      _ -> quoted_to_algebra(operand, context, state)
+      {:&, _, [arg]} when not is_integer(arg) ->
+        {doc, state} = quoted_to_algebra(operand, context, state)
+        {wrap_in_parens(doc), state}
+      _ ->
+        quoted_to_algebra(operand, context, state)
     end
   end
 
@@ -564,30 +568,32 @@ defmodule CodeFormatter do
     {"&" <> Integer.to_string(integer), state}
   end
 
-  defp capture_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, _context, state)
+  defp capture_to_algebra(arg, context, state) do
+    {{doc, state}, force_space?} = capture_target_to_algebra(arg, context, state)
+
+    if force_space? or (doc |> format_to_string() |> String.starts_with?("&")) do
+      {concat("& ", doc), state}
+    else
+      {concat("&", doc), state}
+    end
+  end
+
+  defp capture_target_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, _context, state)
       when is_atom(name) and is_integer(arity) do
     {doc, state} = remote_target_to_algebra(target, state)
     name = Code.Identifier.inspect_as_function(name)
-    {"&" |> concat(doc) |> nest(1) |> concat(string(".#{name}/#{arity}")), state}
+    {{doc |> nest(1) |> concat(string(".#{name}/#{arity}")), state}, false}
   end
 
-  defp capture_to_algebra({:/, _, [{name, _, context}, {:__block__, _, [arity]}]}, _context, state)
-       when is_atom(name) and is_atom(context) and is_integer(arity) do
-    {string("&#{name}/#{arity}"), state}
+  defp capture_target_to_algebra({:/, _, [{name, _, var_context}, {:__block__, _, [arity]}]}, _context, state)
+       when is_atom(name) and is_atom(var_context) and is_integer(arity) do
+    {{string("#{name}/#{arity}"), state}, false}
   end
 
-  defp capture_to_algebra(arg, context, state) do
-    {doc, state} = quoted_to_algebra(arg, context, state)
-
-    cond do
-      binary_operator?(arg) ->
-        {concat("& ", doc), state}
-      doc |> format_to_string() |> String.starts_with?("&") ->
-        {concat("& ", doc), state}
-      true ->
-        {concat("&", doc), state}
-    end
+  defp capture_target_to_algebra(arg, context, state) do
+    {quoted_to_algebra(arg, context, state), binary_operator?(arg)}
   end
+
 
   ## Calls (local, remote and anonymous)
 
