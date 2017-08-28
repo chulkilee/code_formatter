@@ -59,48 +59,55 @@ defmodule CodeFormatter do
   @doc """
   Checks if two strings are equivalent.
   """
-  def equivalent?(string1, string2) when is_binary(string1) and is_binary(string2) do
+  def equivalent(string1, string2) when is_binary(string1) and is_binary(string2) do
     quoted1 = Code.string_to_quoted!(string1)
     quoted2 = Code.string_to_quoted!(string2)
-    equivalent_quote?(quoted1, quoted2)
+    case not_equivalent(quoted1, quoted2) do
+      {left, right} -> {:error, left, right}
+      nil -> :ok
+    end
   end
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
-  defp equivalent_quote?({:__block__, _, left}, {:__block__, _, right}) do
-    equivalent_quote?(left, right)
+  defp not_equivalent({:__block__, _, left}, {:__block__, _, right}) do
+    not_equivalent(left, right)
   end
 
-  defp equivalent_quote?({:__block__, _, [left]}, right) do
-    equivalent_quote?(left, right)
+  defp not_equivalent({:__block__, _, [left]}, right) do
+    not_equivalent(left, right)
   end
 
-  defp equivalent_quote?(left, {:__block__, _, [right]}) do
-    equivalent_quote?(left, right)
+  defp not_equivalent(left, {:__block__, _, [right]}) do
+    not_equivalent(left, right)
   end
 
-  defp equivalent_quote?({:__block__, _, []}, nil) do
-    true
+  defp not_equivalent({:__block__, _, []}, nil) do
+    nil
   end
 
-  defp equivalent_quote?(nil, {:__block__, _, []}) do
-    true
+  defp not_equivalent(nil, {:__block__, _, []}) do
+    nil
   end
 
-  defp equivalent_quote?([left | lefties], [right | righties]) do
-    equivalent_quote?(left, right) and equivalent_quote?(lefties, righties)
+  defp not_equivalent([left | lefties], [right | righties]) do
+    not_equivalent(left, right) || not_equivalent(lefties, righties)
   end
 
-  defp equivalent_quote?({left_name, _, left_args}, {right_name, _, right_args}) do
-    equivalent_quote?(left_name, right_name) and equivalent_quote?(left_args, right_args)
+  defp not_equivalent({left_name, _, left_args}, {right_name, _, right_args}) do
+    not_equivalent(left_name, right_name) || not_equivalent(left_args, right_args)
   end
 
-  defp equivalent_quote?({left1, left2}, {right1, right2}) do
-    equivalent_quote?(left1, right1) and equivalent_quote?(left2, right2)
+  defp not_equivalent({left1, left2}, {right1, right2}) do
+    not_equivalent(left1, right1) || not_equivalent(left2, right2)
   end
 
-  defp equivalent_quote?(left, right) do
-    left === right
+  defp not_equivalent(side, side) do
+    nil
+  end
+
+  defp not_equivalent(left, right) do
+    {left, right}
   end
 
   @doc """

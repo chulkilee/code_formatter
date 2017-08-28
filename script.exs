@@ -10,11 +10,12 @@ for pattern <- patterns, path <- Path.wildcard(pattern) do
     IO.puts :stderr, pos
   end
 
-  if CodeFormatter.equivalent?(pre, pos) do
-    IO.puts "equivalent"
-  else
-    IO.puts "not equivalent"
-    System.halt(1)
+  case CodeFormatter.equivalent(pre, pos) do
+    :ok ->
+      IO.puts "equivalent"
+    {:error, left, right} ->
+      IO.puts "not equivalent (#{inspect left}, #{inspect right})"
+      System.halt(1)
   end
 
   if opts[:save] do
