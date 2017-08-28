@@ -55,20 +55,45 @@ defmodule CodeFormatter do
   ]
 
   @doc """
+  Checks if two strings are equivalent.
+  """
+  def equivalent?(string1, string2) when is_binary(string1) and is_binary(string2) do
+    quoted1 = Code.string_to_quoted!(string1)
+    quoted2 = Code.string_to_quoted!(string2)
+    equivalent_quote?(quoted1, quoted2)
+  end
+
+  defp equivalent_quote?([left | lefties], [right | righties]) do
+    equivalent_quote?(left, right) and equivalent_quote?(lefties, righties)
+  end
+
+  defp equivalent_quote?({left_name, _, left_args}, {right_name, _, right_args}) do
+    equivalent_quote?(left_name, right_name) and equivalent_quote?(left_args, right_args)
+  end
+
+  defp equivalent_quote?({left1, left2}, {right1, right2}) do
+    equivalent_quote?(left1, right1) and equivalent_quote?(left2, right2)
+  end
+
+  defp equivalent_quote?(left, right) do
+    left === right
+  end
+
+  @doc """
   Formats the given code `string`.
   """
-  def format(string, opts \\ []) do
+  def format!(string, opts \\ []) when is_binary(string) and is_list(opts) do
     line_length = Keyword.get(opts, :line_length, @line_length)
 
     string
-    |> to_algebra(opts)
+    |> to_algebra!(opts)
     |> Inspect.Algebra.format(line_length)
   end
 
   @doc """
   Converts `string` to an algebra document.
   """
-  def to_algebra(string, opts \\ []) do
+  def to_algebra!(string, opts \\ []) when is_binary(string) and is_list(opts) do
     string
     |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
     |> block_to_algebra(state(opts))
@@ -291,6 +316,7 @@ defmodule CodeFormatter do
 
   ## Blocks
 
+  # TODO: Introduce smart spacing based on special forms, @, assignments, etc.
   defp block_to_algebra({:__block__, _, [_, _ | _] = args}, state) do
     {args, last} = split_last(args)
 
