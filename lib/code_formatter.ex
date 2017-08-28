@@ -127,6 +127,14 @@ defmodule CodeFormatter do
     end
   end
 
+  # foo[bar]
+  # TODO: Remove Access in favor of our own special form.
+  defp quoted_to_algebra({{:., _, [Access, :get]}, _, [target | args]}, _context, state) do
+    {target_doc, state} = quoted_to_algebra_with_parens_if_necessary(target, :argument, state)
+    {call_doc, state} = list_to_algebra(args, state)
+    {concat(target_doc, call_doc), state}
+  end
+
   # %Foo{}
   # %name{foo: 1}
   # %name{bar | foo: 1}
@@ -1020,8 +1028,7 @@ defmodule CodeFormatter do
     end
   end
 
-  # TODO: Perform simple check for all data structures
-  # (calls not included).
+  # TODO: Perform simple check for all data structures (calls not included).
   defp container(_args, left, doc, right) do
     surround(left, doc, right)
   end

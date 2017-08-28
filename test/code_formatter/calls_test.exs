@@ -677,5 +677,37 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "with keywords" do
+      assert_same "expr.{:hello, foo: bar, baz: bat}"
+    end
+  end
+
+  describe "access" do
+    test "with one argument" do
+      assert_format "foo[ bar ]", "foo[bar]"
+    end
+
+    test "with arguments on line limit" do
+      bad = "foo[really_long_argument()]"
+      good = """
+      foo[
+        really_long_argument()
+      ]
+      """
+      assert_format bad, good, @short_length
+
+      bad = "really_long_expression[really_long_argument()]"
+      good = """
+      really_long_expression[
+        really_long_argument()
+      ]
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with keywords" do
+      assert_format "expr[foo: bar, baz: bat]", "expr[[foo: bar, baz: bat]]"
+    end
   end
 end
