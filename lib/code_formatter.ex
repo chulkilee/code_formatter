@@ -295,6 +295,11 @@ defmodule CodeFormatter do
     remote_to_algebra(quoted, context, state)
   end
 
+  # (left -> right)
+  defp quoted_to_algebra([{:"->", _, _} | _] = clauses, _context, state) do
+    type_fun_to_algebra(clauses, state)
+  end
+
   # [keyword: :list] (inner part)
   # %{:foo => :bar} (inner part)
   defp quoted_to_algebra(list, _context, state) when is_list(list) do
@@ -960,6 +965,53 @@ defmodule CodeFormatter do
   defp anon_fun_to_algebra(clauses, state) do
     {clauses_docs, state} = clauses_to_algebra(clauses, state)
     {"fn" |> line(group(clauses_docs)) |> nest(2) |> line("end") |> force_break(), state}
+  end
+
+  ## Type functions
+
+  # (-> block)
+  defp type_fun_to_algebra([{:"->", _, [[], body]}], state) do
+    {body_doc, state} = block_to_algebra(body, state)
+
+    doc =
+      "(-> "
+      |> concat(nest(body_doc, :cursor))
+      |> concat(")")
+      |> group()
+
+    {doc, state}
+  end
+
+  # (x -> y)
+  # (x ->
+  #    y)
+  defp type_fun_to_algebra([{:"->", _, [args, body]}], state) do
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {body_doc, state} = block_to_algebra(body, state)
+
+    clause_doc =
+      " ->"
+      |> glue(body_doc)
+      |> nest(2)
+
+    doc =
+      args_doc
+      |> concat(clause_doc)
+      |> wrap_in_parens()
+      |> group()
+
+    {doc, state}
+  end
+
+  # (
+  #   args1 ->
+  #     block1
+  #   args2 ->
+  #     block2
+  # )
+  defp type_fun_to_algebra(clauses, state) do
+    {clauses_docs, state} = clauses_to_algebra(clauses, state)
+    {"(" |> line(group(clauses_docs)) |> nest(2) |> line(")") |> force_break(), state}
   end
 
   ## Clauses

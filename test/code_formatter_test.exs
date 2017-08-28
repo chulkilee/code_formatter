@@ -135,6 +135,15 @@ defmodule CodeFormatterTest do
       assert_format bad, good, @short_length
     end
 
+    test "with a single clause and when" do
+      assert_same """
+      fn arg when
+           guard ->
+        :ok
+      end
+      """, @short_length
+    end
+
     test "with multiple clauses" do
       assert_same """
       fn
@@ -219,6 +228,86 @@ defmodule CodeFormatterTest do
 
     test "uses block context for the body of each clause" do
       assert_same "fn -> @foo bar end"
+    end
+  end
+
+  describe "anonymous functions types" do
+    test "with a single clause and no arguments" do
+      assert_format "(->:ok)", "(-> :ok)"
+      assert_same "(-> :really_long_atom)", @short_length
+    end
+
+    test "with a single clause and arguments" do
+      assert_format "( x ,y-> x + y  )", "(x, y -> x + y)"
+
+      bad = "(x -> :really_long_atom)"
+      good = """
+      (x ->
+         :really_long_atom)
+      """
+      assert_format bad, good, @short_length
+
+      bad = "(one, two, three -> foo(x))"
+      good = """
+      (one,
+       two,
+       three ->
+         foo(x))
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "with multiple clauses" do
+      assert_same """
+      (
+        1 -> :ok
+        2 -> :ok
+      )
+      """, @short_length
+
+      assert_same """
+      (
+        1 ->
+          :ok
+        2 ->
+          :error
+      )
+      """, @short_length
+
+      assert_same """
+      (
+        arg11,
+        arg12 ->
+          body1
+        arg21,
+        arg22 ->
+          body2
+      )
+      """, @short_length
+    end
+
+    test "with heredocs" do
+      assert_same """
+      (
+        arg1 ->
+          '''
+          foo
+          '''
+        arg2 ->
+          '''
+          bar
+          '''
+      )
+      """
+    end
+
+    test "with multiple empty clauses" do
+      assert_same """
+      (
+        () -> :ok1
+        () -> :ok2
+      )
+      """
     end
   end
 
