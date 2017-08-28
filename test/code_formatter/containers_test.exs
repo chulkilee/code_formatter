@@ -243,4 +243,74 @@ defmodule CodeFormatter.ContainersTest do
     end
   end
 
+
+  describe "structs" do
+    test "without arguments" do
+      assert_format "%struct{ }", "%struct{}"
+    end
+
+    test "with arguments" do
+      assert_format "%struct{1 => 2,3 => 4}", "%struct{1 => 2, 3 => 4}"
+    end
+
+    test "is strict on line limits" do
+      bad = "%struct{1 => 2, 3 => 4}"
+      good = """
+      %struct{
+        1 => 2,
+        3 => 4
+      }
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "%struct{1 => 2,}", "%struct{1 => 2}"
+    end
+
+    test "with keyword lists" do
+      assert_same "%struct{:foo => :bar, baz: :bat}"
+
+      assert_same """
+      %struct{
+        :foo => :bar,
+        baz: :bat
+      }
+      """, @short_length
+    end
+  end
+
+  describe "struct with update" do
+    test "with arguments" do
+      assert_format "%struct{foo | 1 => 2,3 => 4}", "%struct{foo | 1 => 2, 3 => 4}"
+    end
+
+    test "is strict on line limits" do
+      bad = "%struct{foo | 1 => 2, 3 => 4}"
+      good = """
+      %struct{
+        foo |
+          1 => 2,
+          3 => 4
+      }
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "%struct{foo | 1 => 2,}", "%struct{foo | 1 => 2}"
+    end
+
+    test "with keyword lists" do
+      assert_same "%struct{foo | :foo => :bar, baz: :bat}"
+
+      assert_same """
+      %struct{
+        foo |
+          :foo => :bar,
+          baz: :bat
+      }
+      """, @short_length
+    end
+  end
 end

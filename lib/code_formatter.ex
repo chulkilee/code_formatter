@@ -127,10 +127,23 @@ defmodule CodeFormatter do
     end
   end
 
-  defp quoted_to_algebra({:%{}, _, args}, _context, state) do
-    map_to_algebra(args, state)
+  # %Foo{}
+  # %name{foo: 1}
+  # %name{bar | foo: 1}
+  defp quoted_to_algebra({:%, _, [name, {:%{}, _, args}]}, _context, state) do
+    {name_doc, state} = quoted_to_algebra(name, :argument, state)
+    map_to_algebra(name_doc, args, state)
   end
 
+  # %{foo: 1}
+  # %{foo => bar}
+  # %{name | foo => bar}
+  defp quoted_to_algebra({:%{}, _, args}, _context, state) do
+    map_to_algebra(empty(), args, state)
+  end
+
+  # {}
+  # {1, 2}
   defp quoted_to_algebra({:{}, _, args}, _context, state) do
     tuple_to_algebra(args, state)
   end
@@ -757,13 +770,14 @@ defmodule CodeFormatter do
     {container(args, "[", args_doc, "]"), state}
   end
 
-  defp map_to_algebra([], state) do
-    {"%{}", state}
+  defp map_to_algebra(name_doc, [], state) do
+    {"%" |> concat(name_doc) |> concat("{}"), state}
   end
 
-  defp map_to_algebra(args, state) do
+  defp map_to_algebra(name_doc, args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {container(args, "%{", args_doc, "}"), state}
+    name_doc = "%" |> concat(name_doc) |> concat("{")
+    {container(args, name_doc, args_doc, "}"), state}
   end
 
   defp tuple_to_algebra([], state) do
