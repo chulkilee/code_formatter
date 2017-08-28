@@ -16,7 +16,6 @@ defmodule CodeFormatter do
 
   # Operators that start on the next line in case of breaks
   @left_new_line_before_binary_operators [:|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
-  @right_new_line_before_binary_operators [:|]
 
   # Operators that always require parens on operands when they are the parent
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
@@ -124,6 +123,10 @@ defmodule CodeFormatter do
     else
       remote_to_algebra(quoted, context, state)
     end
+  end
+
+  defp quoted_to_algebra({:%{}, _, args}, _context, state) do
+    map_to_algebra(args, state)
   end
 
   defp quoted_to_algebra({:{}, _, args}, _context, state) do
@@ -239,15 +242,23 @@ defmodule CodeFormatter do
     remote_to_algebra(quoted, context, state)
   end
 
-  # [keyword: :list]
+  # [keyword: :list] (inner part)
+  # %{:foo => :bar} (inner part)
   defp quoted_to_algebra(list, _context, state) when is_list(list) do
     args_to_algebra(list, state, &quoted_to_algebra(&1, :argument, &2))
   end
 
   # keyword: :list
-  defp quoted_to_algebra({left, right}, _context, state) do
+  defp quoted_to_algebra({left, right}, _context, state) when is_atom(left) do
     {right, state} = quoted_to_algebra(right, :argument, state)
     {left |> Code.Identifier.inspect_as_key() |> string() |> concat(right), state}
+  end
+
+  # key => value
+  defp quoted_to_algebra({left, right}, _context, state) do
+    {left, state} = quoted_to_algebra(left, :argument, state)
+    {right, state} = quoted_to_algebra(right, :argument, state)
+    {left |> concat(" => ") |> concat(right), state}
   end
 
   ## Blocks
@@ -327,7 +338,7 @@ defmodule CodeFormatter do
           op_string = op_string <> " "
           doc = concat(glue(left, op_string), nest_by_length(right, op_string))
           if op_info == parent_info, do: doc, else: group(doc)
-        op in @right_new_line_before_binary_operators ->
+        op == :| and parent_info != nil ->
           op_string = op_string <> " "
 
           # If the parent is of the same type (computed via same precedence),
@@ -722,6 +733,15 @@ defmodule CodeFormatter do
     {container(args, "[", args_doc, "]"), state}
   end
 
+  defp map_to_algebra([], state) do
+    {"%{}", state}
+  end
+
+  defp map_to_algebra(args, state) do
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {container(args, "%{", args_doc, "}"), state}
+  end
+
   defp tuple_to_algebra([], state) do
     {"{}", state}
   end
@@ -976,7 +996,7 @@ defmodule CodeFormatter do
     true
   end
 
-  defp apply_cancel_break?({:__block__, meta, [{_, _}]}) do
+  defp apply_cancel_break?({:__block__, _meta, [{_, _}]}) do
     true
   end
 

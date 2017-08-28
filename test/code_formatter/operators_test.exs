@@ -89,7 +89,7 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "1|>2", "1 |> 2"
     end
 
-    test "breaks into new line with left precedence" do
+    test "breaks into new line" do
       bad = "123_456_789 |> 987_654_321"
       good = """
       123_456_789
@@ -160,80 +160,6 @@ defmodule CodeFormatter.OperatorsTest do
            baz
          )
       |> 456
-      """
-      assert_format bad, good, @short_length
-    end
-
-    test "breaks into new line with right precedence" do
-      bad = "123_456_789 | 987_654_321"
-      good = """
-      123_456_789
-      | 987_654_321
-      """
-      assert_format bad, good, @short_length
-
-      bad = "123 | foo(bar)"
-      good = """
-      123
-      | foo(bar)
-      """
-      assert_format bad, good, @short_length
-
-      bad = "123 | foo(bar, baz) | bar(baz, bat)"
-      good = """
-      123
-      | foo(
-          bar,
-          baz
-        )
-      | bar(
-          baz,
-          bat
-        )
-      """
-      assert_format bad, good, @short_length
-
-      bad = "foo(bar, 123 | bar(baz))"
-      good = """
-      foo(
-        bar,
-        123
-        | bar(
-            baz
-          )
-      )
-      """
-      assert_format bad, good, @short_length
-
-      bad = "foo(bar, baz) | 123"
-      good = """
-      foo(
-        bar,
-        baz
-      )
-      | 123
-      """
-      assert_format bad, good, @short_length
-
-      bad = "foo(bar, baz) | 123 | 456"
-      good = """
-      foo(
-        bar,
-        baz
-      )
-      | 123
-      | 456
-      """
-      assert_format bad, good, @short_length
-
-      bad = "123 | foo(bar, baz) | 456"
-      good = """
-      123
-      | foo(
-          bar,
-          baz
-        )
-      | 456
       """
       assert_format bad, good, @short_length
     end
@@ -432,20 +358,23 @@ defmodule CodeFormatter.OperatorsTest do
     end
 
     test "mixed before and after lines" do
-      bad = "a | b and c | d"
+      bad = "var :: a | b and c | d"
       good = """
-      a
-      | b and c
-      | d
+      var ::
+        a
+        | b and
+            c
+        | d
       """
       assert_format bad, good, @short_length
 
-      bad = "a | b and c + d + e + f | g"
+      bad = "var :: a | b and c + d + e + f | g"
       good = """
-      a
-      | b and
-          c + d + e + f
-      | g
+      var ::
+        a
+        | b and
+            c + d + e + f
+        | g
       """
       assert_format bad, good, @medium_length
     end

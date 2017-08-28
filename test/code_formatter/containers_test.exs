@@ -100,6 +100,19 @@ defmodule CodeFormatter.ContainersTest do
       ]
       """
       assert_format bad, good, @short_length
+
+      bad = """
+      [1, 2, 3 | really_long_expression()]
+      """
+      good = """
+      [
+        1,
+        2,
+        3 |
+          really_long_expression()
+      ]
+      """
+      assert_format bad, good, @short_length
     end
 
     test "removes trailing comma" do
@@ -159,4 +172,75 @@ defmodule CodeFormatter.ContainersTest do
       assert_format bad, good, @short_length
     end
   end
+
+  describe "maps" do
+    test "without arguments" do
+      assert_format "%{ }", "%{}"
+    end
+
+    test "with arguments" do
+      assert_format "%{1 => 2,3 => 4}", "%{1 => 2, 3 => 4}"
+    end
+
+    test "is strict on line limits" do
+      bad = "%{1 => 2, 3 => 4}"
+      good = """
+      %{
+        1 => 2,
+        3 => 4
+      }
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "%{1 => 2,}", "%{1 => 2}"
+    end
+
+    test "with keyword lists" do
+      assert_same "%{:foo => :bar, baz: :bat}"
+
+      assert_same """
+      %{
+        :foo => :bar,
+        baz: :bat
+      }
+      """, @short_length
+    end
+  end
+
+  describe "maps with update" do
+    test "with arguments" do
+      assert_format "%{foo | 1 => 2,3 => 4}", "%{foo | 1 => 2, 3 => 4}"
+    end
+
+    test "is strict on line limits" do
+      bad = "%{foo | 1 => 2, 3 => 4}"
+      good = """
+      %{
+        foo |
+          1 => 2,
+          3 => 4
+      }
+      """
+      assert_format bad, good, @short_length
+    end
+
+    test "removes trailing comma" do
+      assert_format "%{foo | 1 => 2,}", "%{foo | 1 => 2}"
+    end
+
+    test "with keyword lists" do
+      assert_same "%{foo | :foo => :bar, baz: :bat}"
+
+      assert_same """
+      %{
+        foo |
+          :foo => :bar,
+          baz: :bat
+      }
+      """, @short_length
+    end
+  end
+
 end
