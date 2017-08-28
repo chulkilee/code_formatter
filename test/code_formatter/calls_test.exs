@@ -638,9 +638,9 @@ defmodule CodeFormatter.CallsTest do
       bad = "foo (bar do :ok end)"
       good = """
       foo(
-        (bar do
-           :ok
-         end)
+        bar do
+          :ok
+        end
       )
       """
       assert_format bad, good
@@ -666,6 +666,17 @@ defmodule CodeFormatter.CallsTest do
     end
 
     test "inside operator inside argument" do
+      bad = "fun foo + (bar do :ok end)"
+      good = """
+      fun(
+        foo +
+          bar do
+            :ok
+          end
+      )
+      """
+      assert_format bad, good
+
       bad = "if foo + (bar do :ok end) do :ok end"
       good = """
       if foo +

@@ -55,6 +55,14 @@ defmodule CodeFormatter.OperatorsTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "inside do-end block" do
+      assert_same """
+      if +value do
+        true
+      end
+      """
+    end
   end
 
   describe "binary without space" do

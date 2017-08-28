@@ -106,8 +106,8 @@ defmodule CodeFormatter do
 
   # Special AST nodes from compiler feedback.
 
-  defp quoted_to_algebra({:special, :arguments, args}, _context, state) do
-    {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+  defp quoted_to_algebra({:special, :arguments, args}, context, state) do
+    {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, context, &2))
     {group(doc), state}
   end
 
@@ -230,8 +230,8 @@ defmodule CodeFormatter do
     {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
-  defp quoted_to_algebra({:__block__, _meta, [arg]}, _context, state) do
-    quoted_to_algebra(arg, :argument, state)
+  defp quoted_to_algebra({:__block__, _meta, [arg]}, context, state) do
+    quoted_to_algebra(arg, context, state)
   end
 
   defp quoted_to_algebra({:__block__, _, []}, _context, state) do
@@ -243,12 +243,12 @@ defmodule CodeFormatter do
     {wrap_in_parens(block), state}
   end
 
-  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, _context, state) do
+  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, context, state) do
     {doc, state} =
       if is_atom(head) do
         {Atom.to_string(head), state}
       else
-        quoted_to_algebra_with_parens_if_necessary(head, :argument, state)
+        quoted_to_algebra_with_parens_if_necessary(head, context, state)
       end
 
     {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
@@ -260,8 +260,8 @@ defmodule CodeFormatter do
   # &Mod.remote/1
   # & &1
   # & &1 + &2
-  defp quoted_to_algebra({:&, _, [arg]}, _context, state) do
-    capture_to_algebra(arg, state)
+  defp quoted_to_algebra({:&, _, [arg]}, context, state) do
+    capture_to_algebra(arg, context, state)
   end
 
   defp quoted_to_algebra({:@, _, [arg]}, context, state) do
@@ -297,13 +297,13 @@ defmodule CodeFormatter do
 
   # [keyword: :list] (inner part)
   # %{:foo => :bar} (inner part)
-  defp quoted_to_algebra(list, _context, state) when is_list(list) do
-    args_to_algebra(list, state, &quoted_to_algebra(&1, :argument, &2))
+  defp quoted_to_algebra(list, context, state) when is_list(list) do
+    args_to_algebra(list, state, &quoted_to_algebra(&1, context, &2))
   end
 
   # keyword: :list
   # key => value
-  defp quoted_to_algebra({left, right}, _context, state) do
+  defp quoted_to_algebra({left, right}, context, state) do
     if keyword_key?(left) do
       {left, state} =
         case left do
@@ -312,11 +312,11 @@ defmodule CodeFormatter do
           {{:., _, [:erlang, :binary_to_atom]}, _, [{:<<>>, _, entries}, :utf8]} ->
             interpolation_to_algebra(entries, @double_quote, state, "\"", "\": ")
         end
-      {right, state} = quoted_to_algebra(right, :argument, state)
+      {right, state} = quoted_to_algebra(right, context, state)
       {concat(left, right), state}
     else
-      {left, state} = quoted_to_algebra(left, :argument, state)
-      {right, state} = quoted_to_algebra(right, :argument, state)
+      {left, state} = quoted_to_algebra(left, context, state)
+      {right, state} = quoted_to_algebra(right, context, state)
       {left |> concat(" => ") |> concat(right), state}
     end
   end
@@ -346,9 +346,6 @@ defmodule CodeFormatter do
 
   ## Operators
 
-  defp operand_if_not_argument(:argument), do: :argument
-  defp operand_if_not_argument(_), do: :operand
-
   defp maybe_unary_op_to_algebra(fun, args, context, state) do
     with [arg] <- args,
          {_, _} <- Code.Identifier.unary_op(fun) do
@@ -359,7 +356,7 @@ defmodule CodeFormatter do
   end
 
   defp unary_op_to_algebra(op, arg, context, state) do
-    {doc, state} = quoted_to_algebra(arg, operand_if_not_argument(context), state)
+    {doc, state} = quoted_to_algebra(arg, at_least_argument(context), state)
 
     # not and ! are nestable, all others are not.
     wrapped_doc =
@@ -404,7 +401,7 @@ defmodule CodeFormatter do
 
   defp binary_op_to_algebra(op, op_string, left_arg, right_arg, context, state, parent_info, nesting) do
     op_info = Code.Identifier.binary_op(op)
-    op_context = operand_if_not_argument(context)
+    op_context = at_least_argument(context)
     {left, state} = binary_operand_to_algebra(left_arg, op_context, state, op, op_info, :left, 2)
     {right, state} = binary_operand_to_algebra(right_arg, op_context, state, op, op_info, :right, 0)
 
@@ -511,7 +508,7 @@ defmodule CodeFormatter do
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
       attr_doc = string("@" <> Atom.to_string(name))
-      {value_doc, state} = quoted_to_algebra(value, :argument, state)
+      {value_doc, state} = quoted_to_algebra(value, context, state)
 
       case context do
         :block ->
@@ -532,24 +529,24 @@ defmodule CodeFormatter do
 
   ## Capture operator
 
-  defp capture_to_algebra(integer, state) when is_integer(integer) do
+  defp capture_to_algebra(integer, _context, state) when is_integer(integer) do
     {"&" <> Integer.to_string(integer), state}
   end
 
-  defp capture_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, state)
+  defp capture_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, _context, state)
       when is_atom(name) and is_integer(arity) do
     {doc, state} = remote_target_to_algebra(target, state)
     name = Code.Identifier.inspect_as_function(name)
     {"&" |> concat(doc) |> nest(1) |> concat(string(".#{name}/#{arity}")), state}
   end
 
-  defp capture_to_algebra({:/, _, [{name, _, context}, {:__block__, _, [arity]}]}, state)
+  defp capture_to_algebra({:/, _, [{name, _, context}, {:__block__, _, [arity]}]}, _context, state)
        when is_atom(name) and is_atom(context) and is_integer(arity) do
     {string("&#{name}/#{arity}"), state}
   end
 
-  defp capture_to_algebra(arg, state) do
-    {doc, state} = quoted_to_algebra(arg, :operand, state)
+  defp capture_to_algebra(arg, context, state) do
+    {doc, state} = quoted_to_algebra(arg, context, state)
 
     cond do
       binary_operator?(arg) ->
@@ -603,7 +600,7 @@ defmodule CodeFormatter do
 
   # call(call)(arguments)
   defp remote_to_algebra({target, _, args}, context, state) do
-    {target_doc, state} = quoted_to_algebra(target, :argument, state)
+    {target_doc, state} = quoted_to_algebra(target, :no_parens_argument, state)
     {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :no, state)
 
     doc = concat(target_doc, cancel_break(call_doc))
@@ -613,14 +610,12 @@ defmodule CodeFormatter do
 
   defp remote_target_to_algebra({:fn, _, [_ | _]} = quoted, state) do
     # This change is not semantically required but for beautification.
-    {doc, state} = quoted_to_algebra(quoted, :argument, state)
+    {doc, state} = quoted_to_algebra(quoted, :no_parens_argument, state)
     {wrap_in_parens(doc), state}
   end
 
   defp remote_target_to_algebra(quoted, state) do
-    # While the left side of a dot is an operator, we treat it
-    # as an argument to get stronger parens rule due to precedence.
-    quoted_to_algebra_with_parens_if_necessary(quoted, :argument, state)
+    quoted_to_algebra_with_parens_if_necessary(quoted, :no_parens_argument, state)
   end
 
   # function(arguments)
@@ -659,7 +654,7 @@ defmodule CodeFormatter do
 
       {blocks_doc, state} = do_end_blocks_to_algebra(blocks, state)
       call_doc = call_doc |> space(cancel_break(blocks_doc)) |> line("end") |> force_break()
-      {{call_doc, state}, context == :argument}
+      {{call_doc, state}, context == :no_parens_argument}
     else
       skip_parens? = context == :block and skip_parens == :yes
       {call_args_to_algebra_without_do_end_blocks(args, last, skip_parens?, state), false}
@@ -667,6 +662,8 @@ defmodule CodeFormatter do
   end
 
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
+    context = if skip_parens?, do: :no_parens_argument, else: :argument
+
     {left, right} =
       if keyword?(right) do
         {kw_left, kw_right} = split_last(right)
@@ -675,8 +672,8 @@ defmodule CodeFormatter do
         {left, right}
       end
 
-    {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, :argument, &2))
-    {right_doc, state} = quoted_to_algebra(right, :argument, state)
+    {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
+    {right_doc, state} = quoted_to_algebra(right, context, state)
 
     right_doc =
       if apply_cancel_break?(right) do
@@ -953,7 +950,7 @@ defmodule CodeFormatter do
   #   y
   # end
   defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :no_parens_argument, &2))
     {body_doc, state} = block_to_algebra(body, state)
 
     doc =
@@ -999,7 +996,7 @@ defmodule CodeFormatter do
   # (x ->
   #    y)
   defp type_fun_to_algebra([{:"->", _, [args, body]}], state) do
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :no_parens_argument, &2))
     {body_doc, state} = block_to_algebra(body, state)
 
     clause_doc =
@@ -1057,15 +1054,18 @@ defmodule CodeFormatter do
   defp clause_args_to_algebra([{:when, _, args}], state) do
     {args, right} = split_last(args)
     left = {:special, :arguments, args}
-    binary_op_to_algebra(:when, "when", left, right, :argument, state, nil, 4)
+    binary_op_to_algebra(:when, "when", left, right, :no_parens_argument, state, nil, 4)
   end
 
   # fn a, b, c -> e end
   defp clause_args_to_algebra(args, state) do
-    args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
+    args_to_algebra(args, state, &quoted_to_algebra(&1, :no_parens_argument, &2))
   end
 
   ## Quoted helpers
+
+  defp at_least_argument(:block), do: :argument
+  defp at_least_argument(other), do: other
 
   defp quoted_to_algebra_with_parens_if_necessary(ast, context, state) do
     {doc, state} = quoted_to_algebra(ast, context, state)
