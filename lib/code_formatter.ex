@@ -63,6 +63,16 @@ defmodule CodeFormatter do
     equivalent_quote?(quoted1, quoted2)
   end
 
+  # TODO: We can remove this workaround once we remove
+  # ?rearrange_uop from the parser in Elixir v2.0.
+  defp equivalent_quote?({:__block__, _, [left]}, {name, _, _} = right) when name != :__block__ do
+    equivalent_quote?(left, right)
+  end
+
+  defp equivalent_quote?({name, _, _} = left, {:__block__, _, [right]}) when name != :__block__ do
+    equivalent_quote?(left, right)
+  end
+
   defp equivalent_quote?([left | lefties], [right | righties]) do
     equivalent_quote?(left, right) and equivalent_quote?(lefties, righties)
   end
@@ -226,7 +236,7 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, _, [_] = args}]},
                          context, state) do
-    {doc, state} = local_to_algebra(:unquote_splicing, context, args, state)
+    {doc, state} = local_to_algebra(:unquote_splicing, args, context, state)
     {concat(concat("(", nest(doc, 1)), ")"), state}
   end
 
@@ -243,15 +253,18 @@ defmodule CodeFormatter do
     {wrap_in_parens(block), state}
   end
 
-  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, context, state) do
-    {doc, state} =
-      if is_atom(head) do
-        {Atom.to_string(head), state}
-      else
-        quoted_to_algebra_with_parens_if_necessary(head, context, state)
-      end
-
-    {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
+  defp quoted_to_algebra({:__aliases__, meta, [head | tail]}, context, state) do
+    if meta[:format] == :alias do
+      {doc, state} =
+        if is_atom(head) do
+          {Atom.to_string(head), state}
+        else
+          quoted_to_algebra_with_parens_if_necessary(head, context, state)
+        end
+      {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
+    else
+      local_to_algebra(:__aliases__, [head | tail], context, state)
+    end
   end
 
   # &1
@@ -283,7 +296,7 @@ defmodule CodeFormatter do
     with :error <- maybe_sigil_to_algebra(fun, meta, args, state),
          :error <- maybe_unary_op_to_algebra(fun, args, context, state),
          :error <- maybe_binary_op_to_algebra(fun, args, context, state),
-         do: local_to_algebra(fun, context, args, state)
+         do: local_to_algebra(fun, args, context, state)
   end
 
   defp quoted_to_algebra({_, _, args} = quoted, context, state) when is_list(args) do
@@ -619,7 +632,7 @@ defmodule CodeFormatter do
   end
 
   # function(arguments)
-  defp local_to_algebra(fun, context, args, state) when is_atom(fun) do
+  defp local_to_algebra(fun, args, context, state) when is_atom(fun) do
     skip_parens = if skip_parens?(fun, args, state), do: :yes, else: :maybe
 
     {{call_doc, state}, wrap_in_parens?} =
@@ -1187,7 +1200,7 @@ defmodule CodeFormatter do
   end
 
   defp do_end_blocks([{{:__block__, meta, [atom]}, value} | list], acc) when atom in @keywords do
-    if Keyword.get(meta, :keyword, false) do
+    if meta[:format] == :keyword do
       do_end_blocks(list, [{atom, value} | acc])
     end
   end
@@ -1207,11 +1220,11 @@ defmodule CodeFormatter do
   end
 
   defp keyword_key?({:__block__, meta, [_]}) do
-    Keyword.get(meta, :keyword, false)
+    meta[:format] == :keyword
   end
 
   defp keyword_key?({{:., _, [:erlang, :binary_to_atom]}, _, [{:<<>>, meta, _}, :utf8]}) do
-    Keyword.get(meta, :keyword, false)
+    meta[:format] == :keyword
   end
 
   defp keyword_key?(_) do

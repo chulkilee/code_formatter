@@ -26,6 +26,12 @@ defmodule CodeFormatterTest do
       assert_format "+(Foo . Bar . Baz)", "+Foo.Bar.Baz"
       assert_format "(+Foo) . Bar . Baz", "(+Foo).Bar.Baz"
     end
+
+    test "maintains invocation intact" do
+      assert_same """
+      __aliases__(args)
+      """
+    end
   end
 
   describe "sigils" do
