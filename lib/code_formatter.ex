@@ -1192,18 +1192,18 @@ defmodule CodeFormatter do
     end
   end
 
-  defp do_end_blocks([], acc) do
-    if Keyword.has_key?(acc, :do) do
+  defp do_end_blocks(rest, acc) do
+    if rest == [] and Keyword.has_key?(acc, :do) do
       acc
     end
   end
 
-  defp do_end_blocks(_not_a_list, _acc) do
-    nil
+  defp keyword?([{key, _} | list]) do
+    keyword_key?(key) and keyword?(list)
   end
 
-  defp keyword?(args) do
-    is_list(args) and Enum.all?(args, fn {k, _} -> keyword_key?(k) end)
+  defp keyword?(rest) do
+    rest == []
   end
 
   defp keyword_key?({:__block__, meta, [_]}) do
