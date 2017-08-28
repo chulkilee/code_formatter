@@ -277,10 +277,11 @@ defmodule CodeFormatter.CallsTest do
       my_function.foo().bar(2, 3).baz(4, 5)
       """
       good = """
-      my_function.
-        foo().
-        bar(2, 3).
-        baz(4, 5)
+      my_function.foo().
+        bar(2, 3).baz(
+          4,
+          5
+        )
       """
       assert_format bad, good, @medium_length
     end
@@ -310,6 +311,26 @@ defmodule CodeFormatter.CallsTest do
           bar: 2
         )
       """, @short_length
+    end
+
+    test "wraps left side in parens if it is an anonymous function" do
+      assert_same "(fn -> :ok end).foo()"
+    end
+
+    test "wraps left side in parens if it is a do-end block" do
+      assert_same """
+      (if true do
+         :ok
+       end).foo()
+      """
+    end
+
+    test "wraps left side in parens if it is a do-end block as an argument" do
+      assert_same """
+      import (if true do
+                :ok
+              end).foo()
+      """
     end
   end
 
@@ -377,6 +398,26 @@ defmodule CodeFormatter.CallsTest do
       )
       """, @short_length
     end
+
+    test "wraps left side in parens if it is an anonymous function" do
+      assert_same "(fn -> :ok end).()"
+    end
+
+    test "wraps left side in parens if it is a do-end block" do
+      assert_same """
+      (if true do
+         :ok
+       end).()
+      """
+    end
+
+    test "wraps left side in parens if it is a do-end block as an argument" do
+      assert_same """
+      import (if true do
+                :ok
+              end).()
+      """
+    end
   end
 
   describe "do end blocks" do
@@ -385,6 +426,16 @@ defmodule CodeFormatter.CallsTest do
       good = """
       foo do
         nil
+      end
+      """
+      assert_format bad, good
+
+      bad = "foo else: this, do: that"
+      good = """
+      foo do
+        that
+      else
+        this
       end
       """
       assert_format bad, good
@@ -540,6 +591,50 @@ defmodule CodeFormatter.CallsTest do
           h2
       end
       """, @medium_length
+    end
+
+    test "inside call" do
+      bad = "foo (bar do :ok end)"
+      good = """
+      foo(
+        (bar do
+           :ok
+         end)
+      )
+      """
+      assert_format bad, good
+
+      bad = "import (bar do :ok end)"
+      good = """
+      import (bar do
+                :ok
+              end)
+      """
+      assert_format bad, good
+    end
+
+    test "inside operator" do
+      bad = "foo + bar do :ok end"
+      good = """
+      foo +
+        bar do
+          :ok
+        end
+      """
+      assert_format bad, good
+    end
+
+    test "inside operator inside argument" do
+      bad = "if foo + (bar do :ok end) do :ok end"
+      good = """
+      if foo +
+           (bar do
+              :ok
+            end) do
+        :ok
+      end
+      """
+      assert_format bad, good
     end
   end
 end
