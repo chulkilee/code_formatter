@@ -231,6 +231,28 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good, @medium_length
     end
+
+    test "call on call" do
+      assert_same "unquote(call)()"
+      assert_same "unquote(call)(one, two)"
+      assert_same """
+      unquote(call)(one, two) do
+        :ok
+      end
+      """
+    end
+
+    test "call on call on line limit" do
+      bad = "foo(bar)(one, two, three)"
+      good = """
+      foo(bar)(
+        one,
+        two,
+        three
+      )
+      """
+      assert_format bad, good, @short_length
+    end
   end
 
   describe "remote calls" do
@@ -331,6 +353,28 @@ defmodule CodeFormatter.CallsTest do
                 :ok
               end).foo()
       """
+    end
+
+    test "call on call" do
+      assert_same "foo.bar(call)()"
+      assert_same "foo.bar(call)(one, two)"
+      assert_same """
+      foo.bar(call)(one, two) do
+        :ok
+      end
+      """
+    end
+
+    test "call on call on line limit" do
+      bad = "a.b(foo)(one, two, three)"
+      good = """
+      a.b(foo)(
+        one,
+        two,
+        three
+      )
+      """
+      assert_format bad, good, @short_length
     end
   end
 
