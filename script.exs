@@ -1,4 +1,4 @@
-{opts, patterns, _} = OptionParser.parse(System.argv, strict: [save: :boolean, print: :boolean])
+{opts, patterns, _} = OptionParser.parse(System.argv, strict: [save: :boolean, verbose: :boolean])
 
 for pattern <- patterns, path <- Path.wildcard(pattern) do
   IO.write "#{path} is... "
@@ -11,10 +11,9 @@ for pattern <- patterns, path <- Path.wildcard(pattern) do
   end
 
   if CodeFormatter.equivalent?(pre, pos) do
-    IO.puts :stderr, "equivalent"
+    IO.puts "equivalent"
   else
-    IO.puts :stderr, "not equivalent"
-    IO.puts :stderr, pos
+    IO.puts "not equivalent"
     System.halt(1)
   end
 
