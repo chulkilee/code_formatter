@@ -45,6 +45,8 @@ defmodule CodeFormatter do
     defstruct: 1,
     raise: 1,
     raise: 2,
+    if: 2,
+    unless: 2,
 
     # Testing
     all: :*,
@@ -486,25 +488,43 @@ defmodule CodeFormatter do
 
   ## Calls (local, remote and anonymous)
 
+  # expression.{}
+  # expression.{foo, bar}
+  defp remote_to_algebra({{:., _, [target, :{}]}, _, args}, _context, state) do
+    {target_doc, state} = remote_target_to_algebra(target, state)
+    {call_doc, state} = tuple_to_algebra(args, state)
+    {concat(concat(target_doc, "."), call_doc), state}
+  end
+
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, context, state) when is_atom(fun) do
-    fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
-    remote_to_algebra(target, fun_doc, args, context, state)
+    {target_doc, state} = remote_target_to_algebra(target, state)
+    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, false, state)
+
+    call_doc =
+      fun
+      |> Code.Identifier.inspect_as_function()
+      |> string()
+      |> concat(call_doc)
+      |> cancel_break()
+
+    dot_doc =
+      "."
+      |> flex_glue("", call_doc)
+      |> nest(2, :break)
+
+    doc = concat(target_doc, dot_doc)
+    doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
+    {doc, state}
   end
 
   # expression.(arguments)
   defp remote_to_algebra({{:., _, [target]}, _, args}, context, state) do
-    remote_to_algebra(target, empty(), args, context, state)
-  end
-
-  defp remote_to_algebra(target, fun_doc, args, context, state) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {call_doc, state} = call_args_to_algebra(fun_doc, args, context, false, state)
-    dot_doc =
-      "."
-      |> flex_glue("", cancel_break(call_doc))
-      |> nest(2, :break)
-    {concat(target_doc, dot_doc), state}
+    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, false, state)
+    doc = concat(concat(target_doc, "."), call_doc)
+    doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
+    {doc, state}
   end
 
   defp remote_target_to_algebra({:fn, _, [_ | _]} = quoted, state) do
@@ -521,42 +541,46 @@ defmodule CodeFormatter do
 
   # function(arguments)
   defp local_to_algebra(fun, context, args, state) when is_atom(fun) do
-    fun_doc = fun |> Atom.to_string() |> string()
-    call_args_to_algebra(fun_doc, args, context, skip_parens?(fun, args, state), state)
+    {{call_doc, state}, wrap_in_parens?} =
+      call_args_to_algebra(args, context, skip_parens?(fun, args, state), state)
+
+    doc =
+      fun
+      |> Atom.to_string()
+      |> string()
+      |> concat(call_doc)
+
+    doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
+    {doc, state}
   end
 
-  defp call_args_to_algebra(fun_doc, [], _context, _skip_parens?, state) do
-    {concat(fun_doc, "()"), state}
+  defp call_args_to_algebra([], _context, _skip_parens?, state) do
+    {{"()", state}, false}
   end
 
-  defp call_args_to_algebra(fun_doc, args, context, skip_parens?, state) do
+  defp call_args_to_algebra(args, context, skip_parens?, state) do
     {args, blocks} = split_last(args)
 
     if do_end_blocks?(blocks) do
       {call_doc, state} =
         case args do
           [] ->
-            {fun_doc, state}
+            {empty(), state}
           _ ->
             {args, last} = split_last(args)
-            call_args_to_algebra_without_do_end_blocks(fun_doc, args, last, true, state)
+            call_args_to_algebra_without_do_end_blocks(args, last, true, state)
         end
 
       {blocks_doc, state} = do_end_blocks_to_algebra(blocks, state)
       call_doc = call_doc |> space(cancel_break(blocks_doc)) |> line("end") |> force_break()
-
-      if context == :argument do
-        {wrap_in_parens(call_doc), state}
-      else
-        {call_doc, state}
-      end
+      {{call_doc, state}, context == :argument}
     else
       skip_parens? = context == :block and skip_parens?
-      call_args_to_algebra_without_do_end_blocks(fun_doc, args, blocks, skip_parens?, state)
+      {call_args_to_algebra_without_do_end_blocks(args, blocks, skip_parens?, state), false}
     end
   end
 
-  defp call_args_to_algebra_without_do_end_blocks(fun_doc, left, right, skip_parens?, state) do
+  defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     {left, right} =
       if is_list(right) do
         {kw_left, kw_right} = split_last(right)
@@ -584,13 +608,11 @@ defmodule CodeFormatter do
 
     call_doc =
       if skip_parens? do
-        fun_doc
-        |> space(nest(args_doc, :cursor, :break))
+        " "
+        |> concat(nest(args_doc, :cursor, :break))
         |> group()
       else
-        fun_doc
-        |> concat("(")
-        |> surround(args_doc, ")", :break)
+        surround("(", args_doc, ")", :break)
       end
 
     {call_doc, state}
@@ -939,7 +961,7 @@ defmodule CodeFormatter do
   end
 
   defp wrap_in_parens(doc) do
-    concat(concat("(", nest(doc, 1)), ")")
+    concat(concat("(", nest(doc, :cursor)), ")")
   end
 
   defp args_to_algebra([], state, _fun) do

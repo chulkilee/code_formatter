@@ -350,13 +350,8 @@ defmodule CodeFormatter.CallsTest do
       assert_same "foo.(1 + 1).(hello)"
     end
 
-    test "splits on dot on line limit" do
-      bad = "my_function.()"
-      good = """
-      my_function.
-        ()
-      """
-      assert_format bad, good, @short_length
+    test "does not split on dot on line limit" do
+      assert_same "my_function.()", @short_length
     end
 
     test "splits on arguments on line limit" do
@@ -364,12 +359,11 @@ defmodule CodeFormatter.CallsTest do
       my_function.(1, 2, 3)
       """
       good = """
-      my_function.
-        (
-          1,
-          2,
-          3
-        )
+      my_function.(
+        1,
+        2,
+        3
+      )
       """
       assert_format bad, good, @short_length
 
@@ -377,10 +371,13 @@ defmodule CodeFormatter.CallsTest do
       my_function.(1, 2).f(3, 4).(5, 6)
       """
       good = """
-      my_function.
-        (1, 2).
-        f(3, 4).
-        (5, 6)
+      my_function.(
+        1,
+        2
+      ).f(
+          3,
+          4
+        ).(5, 6)
       """
       assert_format bad, good, @short_length
     end
@@ -635,6 +632,50 @@ defmodule CodeFormatter.CallsTest do
       end
       """
       assert_format bad, good
+    end
+
+    test "inside operator inside argument with remote call" do
+      bad = "if foo + (Bar.baz do :ok end) do :ok end"
+      good = """
+      if foo + (Bar.baz do
+                  :ok
+                end) do
+        :ok
+      end
+      """
+      assert_format bad, good
+    end
+  end
+
+  describe "tuple calls" do
+    test "without arguments" do
+      assert_format "foo . {}", "foo.{}"
+    end
+
+    test "with arguments" do
+      assert_format "foo.{bar,baz,bat,}", "foo.{bar, baz, bat}"
+    end
+
+    test "with arguments on line limit" do
+      bad = "foo.{bar,baz,bat,}"
+      good = """
+      foo.{
+        bar,
+        baz,
+        bat
+      }
+      """
+      assert_format bad, good, @short_length
+
+      bad = "really_long_expression.{bar,baz,bat,}"
+      good = """
+      really_long_expression.{
+        bar,
+        baz,
+        bat
+      }
+      """
+      assert_format bad, good, @short_length
     end
   end
 end
