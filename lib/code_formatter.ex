@@ -47,6 +47,8 @@ defmodule CodeFormatter do
     raise: 2,
     if: 2,
     unless: 2,
+    use: 1,
+    use: 2,
 
     # Testing
     all: :*,
@@ -86,7 +88,12 @@ defmodule CodeFormatter do
   end
 
   defp equivalent_quote?(left, right) do
-    left === right
+    if left === right do
+      true
+    else
+      IO.inspect {left, right}
+      false
+    end
   end
 
   @doc """
@@ -521,7 +528,7 @@ defmodule CodeFormatter do
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
       attr_doc = string("@" <> Atom.to_string(name))
-      {value_doc, state} = quoted_to_algebra(value, context, state)
+      {value_doc, state} = quoted_to_algebra(value, :no_parens_argument, state)
 
       case context do
         :block ->

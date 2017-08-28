@@ -527,6 +527,16 @@ defmodule CodeFormatter.OperatorsTest do
       assert_same "@my_long_attribute :some_value", @short_length
     end
 
+    test "with do-end block" do
+      bad = "@attr for x <- y, do: z"
+      good = """
+      @attr (for x <- y do
+               z
+             end)
+      """
+      assert_format bad, good
+    end
+
     test "is parenthesized when setting inside a call" do
       assert_same "my_fun(@foo(bar), baz)"
     end
