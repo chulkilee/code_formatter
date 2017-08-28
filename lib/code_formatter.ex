@@ -88,12 +88,7 @@ defmodule CodeFormatter do
   end
 
   defp equivalent_quote?(left, right) do
-    if left === right do
-      true
-    else
-      IO.inspect {left, right}
-      false
-    end
+    left === right
   end
 
   @doc """
