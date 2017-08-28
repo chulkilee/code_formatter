@@ -151,10 +151,6 @@ defmodule CodeFormatter.LiteralsTest do
       assert_format ~S["one #{@two(three)}"], ~S["one #{@two three}"]
     end
 
-    test "with escapes and interpolation" do
-      assert_same ~S["one\n\"#{2}\"\nthree"]
-    end
-
     test "with interpolation on line limit" do
       bad = ~S"""
       "one #{"two"} three"
@@ -167,6 +163,14 @@ defmodule CodeFormatter.LiteralsTest do
       """
 
       assert_format bad, good, @short_length
+    end
+
+    test "with escaped interpolation" do
+      assert_same ~S["one\#{two}three"]
+    end
+
+    test "with escapes and interpolation" do
+      assert_same ~S["one\n\"#{2}\"\nthree"]
     end
 
     test "is measured in graphemes" do
