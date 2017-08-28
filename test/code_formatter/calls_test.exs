@@ -461,7 +461,7 @@ defmodule CodeFormatter.CallsTest do
     end
   end
 
-  describe "do end blocks" do
+  describe "do-end blocks" do
     test "with non-block keywords" do
       bad = "foo do: nil"
       good = """
@@ -481,7 +481,9 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good
 
+      assert_same "foo(do: this, do: that)"
       assert_same "foo(do: this, other: that)"
+      assert_same "foo(do: this, else: this, else: that)"
     end
 
     test "with multiple keywords" do
@@ -761,7 +763,7 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @short_length
     end
 
-    test "do-end blocks keywords" do
+    test "with do-end blocks" do
       assert_same """
       (if true do
          false

@@ -117,6 +117,8 @@ defmodule CodeFormatterTest do
       end
       """
       assert_format bad, good, @short_length
+
+      assert_same "fn () when node() == :nonode@nohost -> true end"
     end
 
     test "with a single clause and arguments" do
@@ -144,7 +146,7 @@ defmodule CodeFormatterTest do
     test "with a single clause and when" do
       assert_same """
       fn arg when
-           guard ->
+             guard ->
         :ok
       end
       """, @short_length
@@ -241,6 +243,7 @@ defmodule CodeFormatterTest do
     test "with a single clause and no arguments" do
       assert_format "(->:ok)", "(-> :ok)"
       assert_same "(-> :really_long_atom)", @short_length
+      assert_same "(() when node() == :nonode@nohost -> true)"
     end
 
     test "with a single clause and arguments" do

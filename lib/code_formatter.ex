@@ -130,6 +130,10 @@ defmodule CodeFormatter do
 
   # Special AST nodes from compiler feedback.
 
+  defp quoted_to_algebra({:special, :arguments, []}, _context, state) do
+    {"()", state}
+  end
+
   defp quoted_to_algebra({:special, :arguments, args}, context, state) do
     {doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, context, &2))
     {group(doc), state}
@@ -669,7 +673,7 @@ defmodule CodeFormatter do
   defp call_args_to_algebra(args, context, skip_parens, state) do
     {args, last} = split_last(args)
 
-    if blocks = do_end_blocks(last, []) do
+    if blocks = do_end_blocks(last, [], @keywords) do
       {call_doc, state} =
         case args do
           [] ->
@@ -733,6 +737,18 @@ defmodule CodeFormatter do
     length > 0 and Enum.any?(locals_without_parens, fn {key, val} ->
       key == fun and (val == :* or val == length)
     end)
+  end
+
+  defp do_end_blocks([{{:__block__, meta, [atom]}, value} | list], acc, available) do
+    if meta[:format] == :keyword and atom in available do
+      do_end_blocks(list, [{atom, value} | acc], List.delete(available, atom))
+    end
+  end
+
+  defp do_end_blocks(rest, acc, _keywords) do
+    if rest == [] and Keyword.has_key?(acc, :do) do
+      acc
+    end
   end
 
   defp do_end_blocks_to_algebra(blocks, state) do
@@ -982,7 +998,7 @@ defmodule CodeFormatter do
   #   y
   # end
   defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :no_parens_argument, &2))
+    {args_doc, state} = clause_args_to_algebra(args, state)
     {body_doc, state} = block_to_algebra(body, state)
 
     doc =
@@ -1028,7 +1044,7 @@ defmodule CodeFormatter do
   # (x ->
   #    y)
   defp type_fun_to_algebra([{:"->", _, [args, body]}], state) do
-    {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :no_parens_argument, &2))
+    {args_doc, state} = clause_args_to_algebra(args, state)
     {body_doc, state} = block_to_algebra(body, state)
 
     clause_doc =
@@ -1216,18 +1232,6 @@ defmodule CodeFormatter do
 
   defp apply_cancel_break?(_) do
     false
-  end
-
-  defp do_end_blocks([{{:__block__, meta, [atom]}, value} | list], acc) when atom in @keywords do
-    if meta[:format] == :keyword do
-      do_end_blocks(list, [{atom, value} | acc])
-    end
-  end
-
-  defp do_end_blocks(rest, acc) do
-    if rest == [] and Keyword.has_key?(acc, :do) do
-      acc
-    end
   end
 
   defp keyword?([{key, _} | list]) do
