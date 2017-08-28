@@ -972,6 +972,14 @@ defmodule CodeFormatter do
     meta[:format] == :list_heredoc
   end
 
+  defp apply_cancel_break?({:{}, _, _}) do
+    true
+  end
+
+  defp apply_cancel_break?({:__block__, meta, [{_, _}]}) do
+    true
+  end
+
   defp apply_cancel_break?({:__block__, meta, [string]}) when is_binary(string) do
     meta[:format] == :bin_heredoc
   end

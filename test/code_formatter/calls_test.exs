@@ -116,6 +116,29 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @short_length
     end
 
+    test "for tuples" do
+      bad = "foo({1, 2})"
+      good = """
+      foo({
+        1,
+        2
+      })
+      """
+      assert_format bad, good, @short_length
+
+      bad = "foo({1, 2, 3, 4})"
+      good = """
+      foo({
+        1,
+        2,
+        3,
+        4
+      })
+      """
+      assert_format bad, good, @short_length
+    end
+
+
     test "with keyword lists" do
       assert_same """
       foo(:hello, foo: foo, bar: '''

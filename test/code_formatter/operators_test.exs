@@ -500,12 +500,11 @@ defmodule CodeFormatter.OperatorsTest do
     test "with containers" do
       bad = "var = {one, two, three}"
       good = """
-      var =
-        {
-          one,
-          two,
-          three
-        }
+      var = {
+        one,
+        two,
+        three
+      }
       """
       assert_format bad, good, @short_length
 
