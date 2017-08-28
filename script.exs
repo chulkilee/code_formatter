@@ -1,4 +1,4 @@
-{opts, patterns, _} = OptionParser.parse(System.argv, strict: [save: :boolean])
+{opts, patterns, _} = OptionParser.parse(System.argv, strict: [save: :boolean, print: :boolean])
 
 for pattern <- patterns, path <- Path.wildcard(pattern) do
   IO.write "#{path} is... "
@@ -6,10 +6,14 @@ for pattern <- patterns, path <- Path.wildcard(pattern) do
   formatted = CodeFormatter.format!(pre)
   pos = IO.iodata_to_binary([formatted, ?\n])
 
+  if opts[:verbose] do
+    IO.puts :stderr, pos
+  end
+
   if CodeFormatter.equivalent?(pre, pos) do
-    IO.puts "equivalent"
+    IO.puts :stderr, "equivalent"
   else
-    IO.puts "not equivalent"
+    IO.puts :stderr, "not equivalent"
     IO.puts :stderr, pos
     System.halt(1)
   end
