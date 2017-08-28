@@ -238,20 +238,21 @@ defmodule CodeFormatterTest do
       baz =
         bat(two)
 
-      last
+      a(b)
       """, @short_length
 
       assert_same """
       foo =
         bar(one)
 
-      middle
+      a(b)
+
       baz =
         bat(two)
       """, @short_length
 
       assert_same """
-      first
+      a(b)
 
       foo =
         bar(one)

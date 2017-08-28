@@ -328,7 +328,7 @@ defmodule CodeFormatter do
       end)
 
     {last_doc, state} = quoted_to_algebra(last, :block, state)
-    block_doc = Enum.reduce(args_doc, last_doc, &line/2)
+    block_doc = Enum.reduce(args_doc, group(last_doc), &line/2)
     {block_doc, state}
   end
 
