@@ -67,12 +67,24 @@ defmodule CodeFormatter do
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
-  defp equivalent_quote?({:__block__, _, [left]}, {name, _, _} = right) when name != :__block__ do
+  defp equivalent_quote?({:__block__, _, left}, {:__block__, _, right}) do
     equivalent_quote?(left, right)
   end
 
-  defp equivalent_quote?({name, _, _} = left, {:__block__, _, [right]}) when name != :__block__ do
+  defp equivalent_quote?({:__block__, _, [left]}, right) do
     equivalent_quote?(left, right)
+  end
+
+  defp equivalent_quote?(left, {:__block__, _, [right]}) do
+    equivalent_quote?(left, right)
+  end
+
+  defp equivalent_quote?({:__block__, _, []}, nil) do
+    true
+  end
+
+  defp equivalent_quote?(nil, {:__block__, _, []}) do
+    true
   end
 
   defp equivalent_quote?([left | lefties], [right | righties]) do
@@ -250,7 +262,7 @@ defmodule CodeFormatter do
     {"", state}
   end
 
-  defp quoted_to_algebra({:__block__, _, block}, _context, state) do
+  defp quoted_to_algebra({:__block__, _, _} = block, _context, state) do
     {block, state} = block_to_algebra(block, state)
     {wrap_in_parens(block), state}
   end

@@ -574,6 +574,15 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "& local(&1, &2)", "&local(&1, &2)"
     end
 
+    test "with blocks" do
+      bad = "&(1; 2)"
+      good = """
+      &(1
+        2)
+      """
+      assert_format bad, good
+    end
+
     test "precedence when combined with calls" do
       assert_same "(&Foo).Bar"
       assert_format "&(Foo).Bar", "&Foo.Bar"
