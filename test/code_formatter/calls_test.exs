@@ -58,7 +58,6 @@ defmodule CodeFormatter.CallsTest do
       foo(bar, fn
         a1 ->
           :ok
-
         b2 ->
           :really_long_error
       end)
@@ -552,7 +551,6 @@ defmodule CodeFormatter.CallsTest do
       foo do
         a1 ->
           really_long_line
-
         b1 ->
           b2
       rescue
@@ -565,7 +563,6 @@ defmodule CodeFormatter.CallsTest do
       after
         g1 ->
           really_long_line
-
         h1 ->
           h2
       end
@@ -587,7 +584,6 @@ defmodule CodeFormatter.CallsTest do
       foo bar, baz do
         a1 ->
           really_long_line
-
         b1 ->
           b2
       rescue
@@ -600,7 +596,6 @@ defmodule CodeFormatter.CallsTest do
       after
         g1 ->
           really_long_line
-
         h1 ->
           h2
       end
@@ -614,7 +609,6 @@ defmodule CodeFormatter.CallsTest do
           arguments do
         a1 ->
           really_long_line
-
         b1 ->
           b2
       rescue
@@ -627,7 +621,6 @@ defmodule CodeFormatter.CallsTest do
       after
         g1 ->
           really_long_line
-
         h1 ->
           h2
       end

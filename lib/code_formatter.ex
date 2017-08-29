@@ -368,7 +368,7 @@ defmodule CodeFormatter do
     {args_doc, state} =
       Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
         {doc, state} = quoted_to_algebra(quoted, :block, state)
-        doc = doc |> concat(nest(break(""), :reset)) |> group()
+        doc = doc |> concat(maybe_empty_line()) |> group()
         {[doc | acc], state}
       end)
 
@@ -475,9 +475,10 @@ defmodule CodeFormatter do
 
           glue(left, group(concat(op_string, right)))
         true ->
-          right = cancel_break(right, cancel_break_mode(right_arg))
-          op_string = " " <> op_string
-          concat(left, group(nest(glue(op_string, right), nesting, :break)))
+          apply_cancel_break(right_arg, right, fn right ->
+            op_string = " " <> op_string
+            concat(left, group(nest(glue(op_string, right), nesting, :break)))
+          end)
       end
 
     {doc, state}
@@ -684,7 +685,7 @@ defmodule CodeFormatter do
         end
 
       {blocks_doc, state} = do_end_blocks_to_algebra(blocks, state)
-      call_doc = call_doc |> space(cancel_break(blocks_doc)) |> line("end") |> force_break()
+      call_doc = call_doc |> space(blocks_doc) |> line("end") |> force_break()
       {{call_doc, state}, context == :no_parens_argument}
     else
       skip_parens? = context == :block and skip_parens == :yes
@@ -706,26 +707,25 @@ defmodule CodeFormatter do
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
     {right_doc, state} = quoted_to_algebra(right, context, state)
 
-    right_doc =
-      cancel_break(right_doc, cancel_break_mode(right))
+    doc =
+      apply_cancel_break(right, right_doc, fn right_doc ->
+        args_doc =
+          if left == [] do
+            right_doc
+          else
+            glue(concat(left_doc, ","), right_doc)
+          end
 
-    args_doc =
-      if left == [] do
-        right_doc
-      else
-        glue(concat(left_doc, ","), right_doc)
-      end
+        if skip_parens? do
+          " "
+          |> concat(nest(args_doc, :cursor, :break))
+          |> group()
+        else
+          surround("(", args_doc, ")", :break)
+        end
+      end)
 
-    call_doc =
-      if skip_parens? do
-        " "
-        |> concat(nest(args_doc, :cursor, :break))
-        |> group()
-      else
-        surround("(", args_doc, ")", :break)
-      end
-
-    {call_doc, state}
+    {doc, state}
   end
 
   defp skip_parens?(fun, args, %{locals_without_parens: locals_without_parens}) do
@@ -1086,9 +1086,13 @@ defmodule CodeFormatter do
   defp clauses_to_algebra([{:"->", _, _} = clause | clauses], state) do
     {clause_doc, state} = clause_to_algebra(clause, state)
 
+    # If we have at least three clauses, then we apply extra empty lines.
+    empty_lines? = match?([_, _ | _], clauses)
+
     Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
       {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
-      {line(concat(doc_acc, nest(break(""), :reset)), clause_doc), state_acc}
+      doc_acc = if empty_lines?, do: concat(doc_acc, maybe_empty_line()), else: doc_acc
+      {line(doc_acc, clause_doc), state_acc}
     end)
   end
 
@@ -1202,8 +1206,15 @@ defmodule CodeFormatter do
     surround(left, doc, right)
   end
 
-  defp cancel_break_mode(arg) do
-    if apply_cancel_break?(arg), do: :enabled, else: :disabled
+  defp apply_cancel_break(arg, doc, fun) do
+    if apply_cancel_break?(arg) do
+      doc
+      |> cancel_break(:enabled)
+      |> fun.()
+      |> cancel_break(:disabled)
+    else
+      fun.(doc)
+    end
   end
 
   defp apply_cancel_break?({:<<>>, meta, [_ | _] = entries}) do
@@ -1271,6 +1282,10 @@ defmodule CodeFormatter do
 
   defp format_to_string(doc) do
     doc |> Inspect.Algebra.format(:infinity) |> IO.iodata_to_binary()
+  end
+
+  defp maybe_empty_line() do
+    nest(break(""), :reset)
   end
 
   defp surround(left, doc, right, nest \\ :always) do

@@ -191,9 +191,19 @@ bar)
       fn
         1 ->
           :ok
-
         2 ->
           :error
+      end
+      """, @short_length
+
+      assert_same """
+      fn
+        arg11,
+        arg12 ->
+          body1
+        arg21,
+        arg22 ->
+          body2
       end
       """, @short_length
 
@@ -206,6 +216,10 @@ bar)
         arg21,
         arg22 ->
           body2
+
+        arg31,
+        arg32 ->
+          body3
       end
       """, @short_length
     end
@@ -217,7 +231,6 @@ bar)
           '''
           foo
           '''
-
         arg2 ->
           '''
           bar
@@ -257,7 +270,6 @@ bar)
             a +
               b ->
           :ok
-
         b1, b2 when
             c +
               d ->
@@ -311,9 +323,19 @@ bar)
       (
         1 ->
           :ok
-
         2 ->
           :error
+      )
+      """, @short_length
+
+      assert_same """
+      (
+        arg11,
+        arg12 ->
+          body1
+        arg21,
+        arg22 ->
+          body2
       )
       """, @short_length
 
@@ -326,6 +348,10 @@ bar)
         arg21,
         arg22 ->
           body2
+
+        arg31,
+        arg32 ->
+          body2
       )
       """, @short_length
     end
@@ -337,7 +363,6 @@ bar)
           '''
           foo
           '''
-
         arg2 ->
           '''
           bar
@@ -417,6 +442,22 @@ bar)
         e =
           f(baz)
       end
+      """, @short_length
+    end
+
+  test "with multiple lines with cancel expressions" do
+      assert_same """
+      foo(%{
+        long_key: 1
+      })
+
+      bar(%{
+        long_key: 1
+      })
+
+      baz(%{
+        long_key: 1
+      })
       """, @short_length
     end
 

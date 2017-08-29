@@ -52,6 +52,15 @@ defmodule CodeFormatter.IntegrationTest do
     """
   end
 
+  test "function with long guards" do
+    assert_same """
+    defp module_attribute_read?({:@, _, [{var, _, var_context}]}) when
+           is_atom(var) and is_atom(var_context) do
+      Code.Identifier.classify(var) == :callable_local
+    end
+    """
+  end
+
   test "anonymous function with single clause and blocks" do
     assert_same """
     {args_doc, state} =
