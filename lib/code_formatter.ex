@@ -362,20 +362,20 @@ defmodule CodeFormatter do
 
   ## Blocks
 
-  # TODO: Introduce smart spacing based on special forms, @, assignments, etc.
   defp block_to_algebra({:__block__, _, [_, _ | _] = args}, state) do
-    {args, last} = split_last(args)
+    length = length(args) - 1
 
     {args_doc, state} =
-      Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
-        {doc, state} = quoted_to_algebra(quoted, :block, state)
-        doc = doc |> concat(maybe_empty_line()) |> group()
-        {[doc | acc], state}
-      end)
+      args
+      |> Enum.with_index
+      |> Enum.map_reduce(state, fn {quoted, i}, state ->
+           {doc, state} = quoted_to_algebra(quoted, :block, state)
+           doc = if i != 0, do: concat(break(""), doc), else: doc
+           doc = if i != length, do: concat(doc, concat(collapse_lines(2), break(""))), else: doc
+           {group(doc), state}
+         end)
 
-    {last_doc, state} = quoted_to_algebra(last, :block, state)
-    block_doc = Enum.reduce(args_doc, group(last_doc), &line/2)
-    {force_break(block_doc), state}
+    {args_doc |> Enum.reduce(&line(&2, &1)) |> force_break(), state}
   end
 
   defp block_to_algebra(block, state) do
@@ -1217,7 +1217,6 @@ defmodule CodeFormatter do
     end
   end
 
-  # TODO: Perform simple check for all data structures (calls not included).
   defp container(_args, left, doc, right) do
     surround(left, doc, right)
   end

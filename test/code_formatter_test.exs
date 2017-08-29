@@ -405,12 +405,14 @@ bar)
         bar(one)
 
       a(b)
+
       baz =
         bat(two)
       """, @short_length
 
       assert_same """
       a(b)
+
       foo =
         bar(one)
 
@@ -445,7 +447,7 @@ bar)
       """, @short_length
     end
 
-  test "with multiple lines with cancel expressions" do
+    test "with multiple lines with cancel expressions" do
       assert_same """
       foo(%{
         long_key: 1

@@ -14,6 +14,7 @@ defmodule CodeFormatter.IntegrationTest do
     def equivalent(string1, string2) when is_binary(string1) and is_binary(string2) do
       quoted1 = Code.string_to_quoted!(string1)
       quoted2 = Code.string_to_quoted!(string2)
+
       case not_equivalent(quoted1, quoted2) do
         {left, right} -> {:error, left, right}
         nil -> :ok
