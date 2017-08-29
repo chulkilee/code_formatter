@@ -475,12 +475,7 @@ defmodule CodeFormatter do
 
           glue(left, group(concat(op_string, right)))
         true ->
-          right =
-            if apply_cancel_break?(right_arg) do
-              cancel_break(right)
-            else
-              right
-            end
+          right = cancel_break(right, cancel_break_mode(right_arg))
           op_string = " " <> op_string
           concat(left, group(nest(glue(op_string, right), nesting, :break)))
       end
@@ -712,11 +707,7 @@ defmodule CodeFormatter do
     {right_doc, state} = quoted_to_algebra(right, context, state)
 
     right_doc =
-      if apply_cancel_break?(right) do
-        cancel_break(right_doc)
-      else
-        right_doc
-      end
+      cancel_break(right_doc, cancel_break_mode(right))
 
     args_doc =
       if left == [] do
@@ -1209,6 +1200,10 @@ defmodule CodeFormatter do
   # TODO: Perform simple check for all data structures (calls not included).
   defp container(_args, left, doc, right) do
     surround(left, doc, right)
+  end
+
+  defp cancel_break_mode(arg) do
+    if apply_cancel_break?(arg), do: :enabled, else: :disabled
   end
 
   defp apply_cancel_break?({:<<>>, meta, [_ | _] = entries}) do

@@ -54,11 +54,12 @@ defmodule CodeFormatter.IntegrationTest do
 
   test "anonymous function with single clause and blocks" do
     assert_same """
-    {args_doc, state} = Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
-      {doc, state} = quoted_to_algebra(quoted, :block, state)
-      doc = doc |> concat(nest(break(""), :reset)) |> group()
-      {[doc | acc], state}
-    end)
+    {args_doc, state} =
+      Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
+        {doc, state} = quoted_to_algebra(quoted, :block, state)
+        doc = doc |> concat(nest(break(""), :reset)) |> group()
+        {[doc | acc], state}
+      end)
     """
   end
 end
