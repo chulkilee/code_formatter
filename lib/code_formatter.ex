@@ -374,7 +374,7 @@ defmodule CodeFormatter do
 
     {last_doc, state} = quoted_to_algebra(last, :block, state)
     block_doc = Enum.reduce(args_doc, group(last_doc), &line/2)
-    {block_doc, state}
+    {force_break(block_doc), state}
   end
 
   defp block_to_algebra(block, state) do
@@ -1020,7 +1020,7 @@ defmodule CodeFormatter do
 
     doc =
       "fn "
-      |> concat(args_doc)
+      |> concat(group(args_doc))
       |> concat(" ->")
       |> nest(1)
       |> glue(body_doc)
@@ -1071,6 +1071,7 @@ defmodule CodeFormatter do
 
     doc =
       args_doc
+      |> group()
       |> concat(clause_doc)
       |> wrap_in_parens()
       |> group()
@@ -1096,7 +1097,7 @@ defmodule CodeFormatter do
 
     Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
       {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
-      {line(doc_acc, clause_doc), state_acc}
+      {line(concat(doc_acc, nest(break(""), :reset)), clause_doc), state_acc}
     end)
   end
 

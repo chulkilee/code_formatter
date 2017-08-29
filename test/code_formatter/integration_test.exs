@@ -32,4 +32,33 @@ defmodule CodeFormatter.IntegrationTest do
     end
     """
   end
+
+  test "function with arrows over multiple lines" do
+    assert_same ~S"""
+    defp quoted_to_algebra({:__block__, meta, [list]}, _context, state) when is_list(list) do
+      case meta[:format] do
+        :list_heredoc ->
+          string = list |> List.to_string() |> escape_string(:heredoc)
+          {@single_heredoc |> line(string) |> concat(@single_heredoc) |> force_break(), state}
+
+        :charlist ->
+          string = list |> List.to_string() |> escape_string(@single_quote)
+          {@single_quote |> concat(string) |> concat(@single_quote), state}
+
+        _other ->
+          list_to_algebra(list, state)
+      end
+    end
+    """
+  end
+
+  test "anonymous function with single clause and blocks" do
+    assert_same """
+    {args_doc, state} = Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
+      {doc, state} = quoted_to_algebra(quoted, :block, state)
+      doc = doc |> concat(nest(break(""), :reset)) |> group()
+      {[doc | acc], state}
+    end)
+    """
+  end
 end

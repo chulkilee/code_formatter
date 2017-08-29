@@ -481,6 +481,7 @@ defmodule CodeFormatter.OperatorsTest do
       var = fn
         arg1 ->
           body1
+
         arg2 ->
           body2
       end
