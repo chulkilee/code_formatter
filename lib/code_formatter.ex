@@ -457,7 +457,8 @@ defmodule CodeFormatter do
           concat(concat(left, op_string), right)
         op in @left_new_line_before_binary_operators ->
           op_string = op_string <> " "
-          glue(left, group(concat(op_string, nest_by_length(right, op_string))))
+          doc = glue(left, concat(op_string, nest_by_length(right, op_string)))
+          if op_info == parent_info, do: doc, else: group(doc)
         op == :| and parent_info != nil ->
           op_string = op_string <> " "
 
@@ -478,11 +479,12 @@ defmodule CodeFormatter do
               _ -> nest_by_length(right, op_string)
             end
 
-          glue(left, group(concat(op_string, right)))
+          doc = glue(left, concat(op_string, right))
+          if op_info == parent_info, do: doc, else: group(doc)
         true ->
           apply_cancel_break(right_arg, right, fn right ->
             op_string = " " <> op_string
-            concat(left, group(nest(glue(op_string, right), nesting, :break)))
+            concat(left, group(nest(glue(op_string, group(right)), nesting, :break)))
           end)
       end
 
@@ -550,14 +552,16 @@ defmodule CodeFormatter do
   defp module_attribute_to_algebra({name, _meta, [value]} = arg, context, state)
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
-      attr_doc = string("@" <> Atom.to_string(name))
+      name = Atom.to_string(name)
       {value_doc, state} = quoted_to_algebra(value, :no_parens_argument, state)
 
       case context do
         :block ->
-          {space(attr_doc, value_doc), state}
+          attr = "@#{name} "
+          {attr |> string |> concat(nest_by_length(value_doc, attr)), state}
         _ ->
-          {concat(concat(concat(attr_doc, "("), value_doc), ")"), state}
+          attr = "@#{name}("
+          {attr |> string |> concat(value_doc) |> concat(")"), state}
       end
     else
       unary_op_to_algebra(:@, arg, context, state)

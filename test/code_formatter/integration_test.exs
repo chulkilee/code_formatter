@@ -90,4 +90,30 @@ defmodule CodeFormatter.IntegrationTest do
     end
     """
   end
+
+  test "type with multiple |" do
+    assert_same """
+    @type t ::
+            binary
+            | :doc_nil
+            | :doc_line
+            | doc_string
+            | doc_cons
+            | doc_nest
+            | doc_break
+            | doc_group
+            | doc_color
+            | doc_force
+            | doc_cancel
+    """
+  end
+
+  test "function with operator and pipeline" do
+    assert_same """
+    defp apply_cancel_break?({fun, meta, args}) when is_atom(fun) and is_list(args) do
+      meta[:terminator] in [@double_heredoc, @single_heredoc] and
+        fun |> Atom.to_string() |> String.starts_with?("sigil_")
+    end
+    """
+  end
 end
