@@ -614,14 +614,7 @@ defmodule CodeFormatter.OperatorsTest do
       # make sure we format it properly with proper wrapping.
       assert_same "&(1 + 2).foo/1"
 
-      bad = """
-      &my_function.foo().bar()/3
-      """
-      good = """
-      &my_function.
-         foo().bar/3
-      """
-      assert_format bad, good, @short_length
+      assert_same "&my_function.foo().bar/3", @short_length
     end
   end
 

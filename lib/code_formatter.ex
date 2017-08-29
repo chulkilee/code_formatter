@@ -623,19 +623,13 @@ defmodule CodeFormatter do
     {target_doc, state} = remote_target_to_algebra(target, state)
     {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :maybe, state)
 
-    call_doc =
+    fun_doc =
       fun
       |> Code.Identifier.inspect_as_function()
       |> string()
       |> concat(call_doc)
-      |> cancel_break()
 
-    dot_doc =
-      "."
-      |> flex_glue("", call_doc)
-      |> nest(2, :break)
-
-    doc = concat(target_doc, dot_doc)
+    doc = concat(concat(target_doc, "."), fun_doc)
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
     {doc, state}
   end
@@ -645,7 +639,7 @@ defmodule CodeFormatter do
     {target_doc, state} = quoted_to_algebra(target, :no_parens_argument, state)
     {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :no, state)
 
-    doc = concat(target_doc, cancel_break(call_doc))
+    doc = concat(target_doc, call_doc)
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
     {doc, state}
   end

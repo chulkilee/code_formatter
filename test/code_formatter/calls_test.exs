@@ -298,11 +298,10 @@ defmodule CodeFormatter.CallsTest do
       my_function.foo().bar(2, 3).baz(4, 5)
       """
       good = """
-      my_function.foo().
-        bar(2, 3).baz(
-          4,
-          5
-        )
+      my_function.foo().bar(
+        2,
+        3
+      ).baz(4, 5)
       """
       assert_format bad, good, @medium_length
     end
@@ -317,7 +316,7 @@ defmodule CodeFormatter.CallsTest do
       assert_same "mod.foo(:hello, foo: 1, bar: 2)"
 
       assert_same """
-      mod.foo(
+      mod.really_long_function_name(
         :hello,
         foo: 1,
         bar: 2
@@ -325,12 +324,11 @@ defmodule CodeFormatter.CallsTest do
       """, @short_length
 
       assert_same """
-      really_long_module_name.
-        foo(
-          :hello,
-          foo: 1,
-          bar: 2
-        )
+      really_long_module_name.foo(
+        :hello,
+        foo: 1,
+        bar: 2
+      )
       """, @short_length
     end
 
@@ -687,9 +685,10 @@ defmodule CodeFormatter.CallsTest do
     test "inside operator inside argument with remote call" do
       bad = "if foo + (Bar.baz do :ok end) do :ok end"
       good = """
-      if foo + (Bar.baz do
-                  :ok
-                end) do
+      if foo +
+           (Bar.baz do
+              :ok
+            end) do
         :ok
       end
       """
