@@ -223,8 +223,8 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, meta, [list]}, _context, state) when is_list(list) do
     case meta[:format] do
       :list_heredoc ->
-        string = list |> List.to_string |> strip_trailing_newline() |> escape_string(:heredoc)
-        {@single_heredoc |> line(string) |> line(@single_heredoc) |> force_break(), state}
+        string = list |> List.to_string |> escape_string(:heredoc)
+        {@single_heredoc |> line(string) |> concat(@single_heredoc) |> force_break(), state}
       :charlist ->
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
@@ -236,8 +236,8 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, meta, [string]}, _context, state)
        when is_binary(string) do
     if meta[:format] == :bin_heredoc do
-      string = string |> strip_trailing_newline() |> escape_string(:heredoc)
-      {@double_heredoc |> line(string) |> line(@double_heredoc) |> force_break(), state}
+      string = escape_string(string, :heredoc)
+      {@double_heredoc |> line(string) |> concat(@double_heredoc) |> force_break(), state}
     else
       string = escape_string(string, @double_quote)
       {@double_quote |> concat(string) |> concat(@double_quote), state}
@@ -794,13 +794,6 @@ defmodule CodeFormatter do
     end)
   end
 
-  defp interpolation_to_algebra([entry], :heredoc, state, acc, last) when is_binary(entry) do
-    entry = strip_trailing_newline(entry)
-    acc = concat(acc, escape_string(entry, :heredoc))
-    # Escaping uses lines without nesting but we need nesting for the last one
-    {line(acc, last), state}
-  end
-
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) when is_binary(entry) do
     acc = concat(acc, escape_string(entry, escape))
     interpolation_to_algebra(entries, escape, state, acc, last)
@@ -979,27 +972,38 @@ defmodule CodeFormatter do
     end
   end
 
-  defp strip_trailing_newline(string) do
-    ?\n = :binary.last(string)
-    :binary.part(string, 0, byte_size(string) - 1)
-  end
-
   defp escape_string(string, :heredoc) do
-    insert_line_breaks(string)
+    heredoc_to_algebra(String.split(string, "\n"))
   end
 
   defp escape_string(string, escape) when is_binary(escape) do
     string
     |> String.replace(escape, "\\" <> escape)
-    |> insert_line_breaks()
-  end
-
-  defp insert_line_breaks(string) do
-    string
     |> String.split("\n")
     |> Enum.reverse()
     |> Enum.map(&string/1)
     |> Enum.reduce(&concat(&1, concat(nest(line(), :reset), &2)))
+  end
+
+  defp heredoc_to_algebra([string]) do
+    string(string)
+  end
+
+  defp heredoc_to_algebra([string, ""]) do
+    string
+    |> string()
+    |> concat(line())
+  end
+
+  defp heredoc_to_algebra([string, "" | rest]) do
+    string
+    |> string()
+    |> concat(nest(line(), :reset))
+    |> line(heredoc_to_algebra(rest))
+  end
+
+  defp heredoc_to_algebra([string | rest]) do
+    line(string(string), heredoc_to_algebra(rest))
   end
 
   ## Anonymous functions

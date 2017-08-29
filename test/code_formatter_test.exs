@@ -405,5 +405,19 @@ bar)
       end
       """, @short_length
     end
+
+    test "with heredoc" do
+      assert_same """
+      block do
+        '''
+        a
+
+        b
+
+        c
+        '''
+      end
+      """
+    end
   end
 end
