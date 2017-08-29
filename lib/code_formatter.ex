@@ -452,8 +452,7 @@ defmodule CodeFormatter do
           concat(concat(left, op_string), right)
         op in @left_new_line_before_binary_operators ->
           op_string = op_string <> " "
-          doc = concat(glue(left, op_string), nest_by_length(right, op_string))
-          if op_info == parent_info, do: doc, else: group(doc)
+          glue(left, group(concat(op_string, nest_by_length(right, op_string))))
         op == :| and parent_info != nil ->
           op_string = op_string <> " "
 
@@ -474,8 +473,7 @@ defmodule CodeFormatter do
               _ -> nest_by_length(right, op_string)
             end
 
-          doc = concat(glue(left, op_string), right)
-          if op_info == parent_info, do: doc, else: group(doc)
+          glue(left, group(concat(op_string, right)))
         true ->
           right =
             if apply_cancel_break?(right_arg) do
@@ -484,7 +482,7 @@ defmodule CodeFormatter do
               right
             end
           op_string = " " <> op_string
-          concat(left, nest(flex_glue(op_string, group(right)), nesting, :break))
+          concat(left, group(nest(glue(op_string, right), nesting, :break)))
       end
 
     {doc, state}

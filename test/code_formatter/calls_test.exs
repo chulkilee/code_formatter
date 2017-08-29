@@ -117,12 +117,11 @@ defmodule CodeFormatter.CallsTest do
     end
 
     test "for tuples" do
-      bad = "foo({1, 2})"
+      bad = "long_call({1, 2})"
       good = """
-      foo({
-        1,
-        2
-      })
+      long_call(
+        {1, 2}
+      )
       """
       assert_format bad, good, @short_length
 
@@ -418,10 +417,10 @@ defmodule CodeFormatter.CallsTest do
       my_function.(
         1,
         2
-      ).f(
-          3,
-          4
-        ).(5, 6)
+      ).f(3, 4).(
+        5,
+        6
+      )
       """
       assert_format bad, good, @short_length
     end
@@ -559,10 +558,8 @@ defmodule CodeFormatter.CallsTest do
       rescue
         c1
       catch
-        d1 ->
-          d1
-        e1 ->
-          e1
+        d1 -> d1
+        e1 -> e1
       else
         f2
       after
@@ -594,10 +591,8 @@ defmodule CodeFormatter.CallsTest do
       rescue
         c1
       catch
-        d1 ->
-          d1
-        e1 ->
-          e1
+        d1 -> d1
+        e1 -> e1
       else
         f2
       after
@@ -621,10 +616,8 @@ defmodule CodeFormatter.CallsTest do
       rescue
         c1
       catch
-        d1 ->
-          d1
-        e1 ->
-          e1
+        d1 -> d1
+        e1 -> e1
       else
         f2
       after

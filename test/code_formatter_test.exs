@@ -4,7 +4,6 @@ defmodule CodeFormatterTest do
   import CodeFormatter.Case
 
   @short_length [line_length: 10]
-  @medium_length [line_length: 20]
 
   describe "aliases" do
     test "with atom-only parts" do
@@ -252,14 +251,16 @@ bar)
       good = """
       fn
         a1, a2 when
-            a + b ->
+            a +
+              b ->
           :ok
         b1, b2 when
-            c + d ->
+            c +
+              d ->
           :ok
       end
       """
-      assert_format long, good, @medium_length
+      assert_format long, good, @short_length
     end
 
     test "uses block context for the body of each clause" do
@@ -372,14 +373,12 @@ bar)
         bar(one)
 
       a(b)
-
       baz =
         bat(two)
       """, @short_length
 
       assert_same """
       a(b)
-
       foo =
         bar(one)
 
