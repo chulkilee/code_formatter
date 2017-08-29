@@ -173,7 +173,7 @@ bar)
     test "with a single clause and when" do
       assert_same """
       fn arg when
-             guard ->
+           guard ->
         :ok
       end
       """, @short_length

@@ -71,4 +71,23 @@ defmodule CodeFormatter.IntegrationTest do
       end)
     """
   end
+
+  test "cond with long clause args" do
+    assert_same """
+    cond do
+      parent_prec == prec and parent_assoc == side ->
+        binary_op_to_algebra(op, op_string, left, right, context, state, op_info, nesting)
+
+      parent_op in @required_parens_on_binary_operands or parent_prec > prec or
+          parent_prec == prec and parent_assoc != side ->
+        {operand, state} =
+          binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
+
+        {concat(concat("(", nest(operand, 1)), ")"), state}
+
+      true ->
+        binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
+    end
+    """
+  end
 end

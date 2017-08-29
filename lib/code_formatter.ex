@@ -132,7 +132,8 @@ defmodule CodeFormatter do
   end
 
   defp state(_opts) do
-    %{locals_without_parens: @locals_without_parens}
+    %{locals_without_parens: @locals_without_parens,
+      operand_nesting: 2}
   end
 
   # Special AST nodes from compiler feedback.
@@ -309,7 +310,7 @@ defmodule CodeFormatter do
   # not(left in right)
   # left not in right
   defp quoted_to_algebra({:not, _, [{:in, _, [left, right]}]}, context, state) do
-    binary_op_to_algebra(:in, "not in", left, right, context, state, nil, 2)
+    binary_op_to_algebra(:in, "not in", left, right, context, state)
   end
 
   defp quoted_to_algebra({:fn, _, [_ | _] = clauses}, _context, state) do
@@ -417,7 +418,7 @@ defmodule CodeFormatter do
   defp maybe_binary_op_to_algebra(fun, args, context, state) do
     with [left, right] <- args,
          {_, _} <- Code.Identifier.binary_op(fun) do
-      binary_op_to_algebra(fun, Atom.to_string(fun), left, right, context, state, nil, 2)
+      binary_op_to_algebra(fun, Atom.to_string(fun), left, right, context, state)
     else
       _ -> :error
     end
@@ -436,6 +437,10 @@ defmodule CodeFormatter do
   #
   # Cases 3 and 4 are the complex ones, as it requires passing the
   # strict or flex mode around.
+  defp binary_op_to_algebra(op, op_string, left_arg, right_arg, context, state) do
+    %{operand_nesting: nesting} = state
+    binary_op_to_algebra(op, op_string, left_arg, right_arg, context, state, nil, nesting)
+  end
 
   defp binary_op_to_algebra(op, op_string, left_arg, right_arg, context, state, parent_info, nesting) do
     op_info = Code.Identifier.binary_op(op)
@@ -513,7 +518,9 @@ defmodule CodeFormatter do
         parent_op in @required_parens_on_binary_operands or
             parent_prec > prec or
             parent_prec == prec and parent_assoc != side ->
-          {operand, state} = binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
+          {operand, state} =
+            binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
+
           {concat(concat("(", nest(operand, 1)), ")"), state}
 
         # Otherwise, we rely on precedence but also nest.
@@ -1105,9 +1112,9 @@ defmodule CodeFormatter do
     {"() ->" |> glue(body_doc) |> nest(2), state}
   end
 
-  defp clause_to_algebra({:"->", _, [args, body]}, state) do
-    {args_doc, state} = clause_args_to_algebra(args, state)
-    {body_doc, state} = block_to_algebra(body, state)
+  defp clause_to_algebra({:"->", _, [args, body]}, %{operand_nesting: nesting} = state) do
+    {args_doc, state} = clause_args_to_algebra(args, %{state | operand_nesting: nesting + 2})
+    {body_doc, state} = block_to_algebra(body, %{state | operand_nesting: nesting})
     {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
@@ -1115,7 +1122,7 @@ defmodule CodeFormatter do
   defp clause_args_to_algebra([{:when, _, args}], state) do
     {args, right} = split_last(args)
     left = {:special, :arguments, args}
-    binary_op_to_algebra(:when, "when", left, right, :no_parens_argument, state, nil, 4)
+    binary_op_to_algebra(:when, "when", left, right, :no_parens_argument, state)
   end
 
   # fn a, b, c -> e end
