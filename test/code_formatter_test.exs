@@ -46,6 +46,26 @@ defmodule CodeFormatterTest do
     test "with escapes" do
       assert_same ~S[~s(foo \) bar)]
       assert_same ~S[~s(f\a\b\ro)]
+      assert_same ~S"""
+      ~S(foo\
+bar)
+      """
+    end
+
+    test "with nested new lines" do
+      assert_same ~S"""
+      foo do
+        ~S(foo\
+      bar)
+      end
+      """
+
+      assert_same ~S"""
+      foo do
+        ~s(#{bar}
+)
+      end
+      """
     end
 
     test "with interpolation" do
@@ -368,6 +388,21 @@ defmodule CodeFormatterTest do
 
       baz =
         bat(two)
+      """, @short_length
+    end
+
+    test "with multiple lines with line limit inside block" do
+      assert_same """
+      block do
+        a =
+          b(foo)
+
+        c =
+          d(bar)
+
+        e =
+          f(baz)
+      end
       """, @short_length
     end
   end

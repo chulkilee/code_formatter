@@ -158,7 +158,7 @@ defmodule CodeFormatter do
         bitstring_to_algebra(entries, state)
       meta[:format] == :bin_heredoc ->
         initial = @double_heredoc |> concat(line()) |> force_break()
-        interpolation_to_algebra(entries, :none, state, initial, @double_heredoc)
+        interpolation_to_algebra(entries, :heredoc, state, initial, @double_heredoc)
       true ->
         interpolation_to_algebra(entries, @double_quote, state, @double_quote, @double_quote)
     end
@@ -171,7 +171,7 @@ defmodule CodeFormatter do
         remote_to_algebra(quoted, context, state)
       meta[:format] == :list_heredoc ->
         initial = @single_heredoc |> concat(line()) |> force_break()
-        interpolation_to_algebra(entries, :none, state, initial, @single_heredoc)
+        interpolation_to_algebra(entries, :heredoc, state, initial, @single_heredoc)
       true ->
         interpolation_to_algebra(entries, @single_quote, state, @single_quote, @single_quote)
     end
@@ -223,8 +223,8 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, meta, [list]}, _context, state) when is_list(list) do
     case meta[:format] do
       :list_heredoc ->
-        string = list |> List.to_string |> escape_string(:none)
-        {@single_heredoc |> line(string) |> concat(@single_heredoc) |> force_break(), state}
+        string = list |> List.to_string |> strip_trailing_newline() |> escape_string(:heredoc)
+        {@single_heredoc |> line(string) |> line(@single_heredoc) |> force_break(), state}
       :charlist ->
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
@@ -236,8 +236,8 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, meta, [string]}, _context, state)
        when is_binary(string) do
     if meta[:format] == :bin_heredoc do
-      string = escape_string(string, :none)
-      {@double_heredoc |> line(string) |> concat(@double_heredoc) |> force_break(), state}
+      string = string |> strip_trailing_newline() |> escape_string(:heredoc)
+      {@double_heredoc |> line(string) |> line(@double_heredoc) |> force_break(), state}
     else
       string = escape_string(string, @double_quote)
       {@double_quote |> concat(string) |> concat(@double_quote), state}
@@ -368,7 +368,7 @@ defmodule CodeFormatter do
     {args_doc, state} =
       Enum.reduce(args, {[], state}, fn quoted, {acc, state} ->
         {doc, state} = quoted_to_algebra(quoted, :block, state)
-        doc = doc |> concat(break("")) |> group()
+        doc = doc |> concat(nest(break(""), :reset)) |> group()
         {[doc | acc], state}
       end)
 
@@ -794,6 +794,13 @@ defmodule CodeFormatter do
     end)
   end
 
+  defp interpolation_to_algebra([entry], :heredoc, state, acc, last) when is_binary(entry) do
+    entry = strip_trailing_newline(entry)
+    acc = concat(acc, escape_string(entry, :heredoc))
+    # Escaping uses lines without nesting but we need nesting for the last one
+    {line(acc, last), state}
+  end
+
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) when is_binary(entry) do
     acc = concat(acc, escape_string(entry, escape))
     interpolation_to_algebra(entries, escape, state, acc, last)
@@ -820,7 +827,7 @@ defmodule CodeFormatter do
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
           acc = force_break(concat(acc, line()))
-          interpolation_to_algebra(entries, :none, state, acc, opening_terminator)
+          interpolation_to_algebra(entries, :heredoc, state, acc, opening_terminator)
         else
           closing_terminator = closing_sigil_terminator(opening_terminator)
           interpolation_to_algebra(
@@ -972,7 +979,12 @@ defmodule CodeFormatter do
     end
   end
 
-  defp escape_string(string, :none) do
+  defp strip_trailing_newline(string) do
+    ?\n = :binary.last(string)
+    :binary.part(string, 0, byte_size(string) - 1)
+  end
+
+  defp escape_string(string, :heredoc) do
     insert_line_breaks(string)
   end
 
@@ -987,7 +999,7 @@ defmodule CodeFormatter do
     |> String.split("\n")
     |> Enum.reverse()
     |> Enum.map(&string/1)
-    |> Enum.reduce(&line/2)
+    |> Enum.reduce(&concat(&1, concat(nest(line(), :reset), &2)))
   end
 
   ## Anonymous functions
