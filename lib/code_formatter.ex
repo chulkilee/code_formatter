@@ -553,7 +553,7 @@ defmodule CodeFormatter do
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
       {{call_doc, state}, wrap_in_parens?} =
-        call_args_to_algebra(args, context, :yes, state)
+        call_args_to_algebra(args, context, :skip_if_block, state)
 
       doc =
         "@#{name}"
@@ -618,7 +618,7 @@ defmodule CodeFormatter do
   # expression.(arguments)
   defp remote_to_algebra({{:., _, [target]}, _, args}, context, state) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :maybe, state)
+    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :skip_if_do_end, state)
     doc = concat(concat(target_doc, "."), call_doc)
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
     {doc, state}
@@ -627,7 +627,7 @@ defmodule CodeFormatter do
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, context, state) when is_atom(fun) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :maybe, state)
+    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :skip_if_do_end, state)
 
     fun_doc =
       fun
@@ -643,7 +643,7 @@ defmodule CodeFormatter do
   # call(call)(arguments)
   defp remote_to_algebra({target, _, args}, context, state) do
     {target_doc, state} = quoted_to_algebra(target, :no_parens_argument, state)
-    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :no, state)
+    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :required, state)
 
     doc = concat(target_doc, call_doc)
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
@@ -662,7 +662,7 @@ defmodule CodeFormatter do
 
   # function(arguments)
   defp local_to_algebra(fun, args, context, state) when is_atom(fun) do
-    skip_parens = if skip_parens?(fun, args, state), do: :yes, else: :maybe
+    skip_parens = if skip_parens?(fun, args, state), do: :skip_if_block, else: :skip_if_do_end
 
     {{call_doc, state}, wrap_in_parens?} =
       call_args_to_algebra(args, context, skip_parens, state)
@@ -677,11 +677,17 @@ defmodule CodeFormatter do
     {doc, state}
   end
 
-  defp call_args_to_algebra([], _context, _skip_parens, state) do
+  # parens may one of:
+  #
+  #   * :skip_if_block - skips parens if we are inside the block context
+  #   * :skip_if_do_end - skip parens if we are do-end
+  #   * :required - never skip parens
+  #
+  defp call_args_to_algebra([], _context, _parens, state) do
     {{"()", state}, false}
   end
 
-  defp call_args_to_algebra(args, context, skip_parens, state) do
+  defp call_args_to_algebra(args, context, parens, state) do
     {args, last} = split_last(args)
 
     if blocks = do_end_blocks(last, [], @keywords) do
@@ -691,14 +697,14 @@ defmodule CodeFormatter do
             {empty(), state}
           _ ->
             {args, last} = split_last(args)
-            call_args_to_algebra_without_do_end_blocks(args, last, skip_parens != :no, state)
+            call_args_to_algebra_without_do_end_blocks(args, last, parens != :required, state)
         end
 
       {blocks_doc, state} = do_end_blocks_to_algebra(blocks, state)
       call_doc = call_doc |> space(blocks_doc) |> line("end") |> force_break()
       {{call_doc, state}, context == :no_parens_argument}
     else
-      skip_parens? = context == :block and skip_parens == :yes
+      skip_parens? = context == :block and parens == :skip_if_block
       {call_args_to_algebra_without_do_end_blocks(args, last, skip_parens?, state), false}
     end
   end
