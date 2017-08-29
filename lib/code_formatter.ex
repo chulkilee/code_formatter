@@ -820,16 +820,12 @@ defmodule CodeFormatter do
 
         if opening_terminator in [@double_heredoc, @single_heredoc] do
           acc = force_break(concat(acc, line()))
-          interpolation_to_algebra(entries, :heredoc, state, acc, opening_terminator)
+          closing_terminator = concat(opening_terminator, List.to_string(modifiers))
+          interpolation_to_algebra(entries, :heredoc, state, acc, closing_terminator)
         else
-          closing_terminator = closing_sigil_terminator(opening_terminator)
-          interpolation_to_algebra(
-            entries,
-            closing_terminator,
-            state,
-            acc,
-            concat(closing_terminator, List.to_string(modifiers))
-          )
+          escape = closing_sigil_terminator(opening_terminator)
+          closing_terminator = concat(escape, List.to_string(modifiers))
+          interpolation_to_algebra(entries, escape, state, acc, closing_terminator)
         end
       _ ->
         :error

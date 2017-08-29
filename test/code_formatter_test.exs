@@ -107,6 +107,14 @@ bar)
       '''
     end
 
+    test "with heredoc syntax and modifier" do
+      assert_same ~S"""
+      ~s'''
+      foo
+      '''rsa
+      """
+    end
+
     test "with heredoc syntax and interpolation on line limit" do
       bad = ~S"""
       ~s'''
