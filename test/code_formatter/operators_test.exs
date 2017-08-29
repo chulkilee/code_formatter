@@ -552,6 +552,45 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "@Foo.Baz", "(@Foo).Baz"
       assert_format "@(Foo.Bar).Baz", "(@(Foo.Bar)).Baz"
     end
+
+    test "with cancel break" do
+      assert_same """
+      @doc '''
+      foo
+      '''
+      """, @short_length
+
+      assert_same """
+      @doc foo: '''
+           bar
+           '''
+      """, @short_length
+    end
+
+    test "without cancel break" do
+      bad = "@really_long_expr foo + bar"
+
+      good = """
+      @really_long_expr foo +
+                          bar
+      """
+
+      assert_format bad, good, @short_length
+    end
+
+    test "with do end blocks" do
+      assert_same """
+      @doc do
+        :ok
+      end
+      """, @short_length
+
+      assert_same """
+      use (@doc do
+             :end
+           end)
+      """, @short_length
+    end
   end
 
   describe "capture" do

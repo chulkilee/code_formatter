@@ -549,22 +549,21 @@ defmodule CodeFormatter do
 
   # @foo bar
   # @foo(bar)
-  defp module_attribute_to_algebra({name, _meta, [value]} = arg, context, state)
+  defp module_attribute_to_algebra({name, _meta, [_] = args} = expr, context, state)
        when is_atom(name) and name not in [:__block__, :__aliases__] do
     if Code.Identifier.classify(name) == :callable_local do
-      name = Atom.to_string(name)
-      {value_doc, state} = quoted_to_algebra(value, :no_parens_argument, state)
+      {{call_doc, state}, wrap_in_parens?} =
+        call_args_to_algebra(args, context, :yes, state)
 
-      case context do
-        :block ->
-          attr = "@#{name} "
-          {attr |> string |> concat(nest_by_length(value_doc, attr)), state}
-        _ ->
-          attr = "@#{name}("
-          {attr |> string |> concat(value_doc) |> concat(")"), state}
-      end
+      doc =
+        "@#{name}"
+        |> string()
+        |> concat(call_doc)
+
+      doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
+      {doc, state}
     else
-      unary_op_to_algebra(:@, arg, context, state)
+      unary_op_to_algebra(:@, expr, context, state)
     end
   end
 
