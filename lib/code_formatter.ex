@@ -455,20 +455,20 @@ defmodule CodeFormatter do
   # immediatelly following the next expression. If so, we
   # replace the breaks by empty documents.
   defp squeeze_module_attributes([
-         {left_attr, {:@, _, _} = attr, right_attr, index_attr},
-         {left_expr, {_, meta, _} = expr, right_expr, index_expr} | rest
+         {left_attr, {:@, _, _} = attr, _, index_attr},
+         {_, {_, meta, _} = expr, right_expr, index_expr} | rest
        ]) when is_list(meta) do
-    if Keyword.get(meta, :newlines, @newlines) >= @newlines do
-      [
-        {left_attr, attr, line(), index_attr} |
-          squeeze_module_attributes([{line(), expr, right_expr, index_expr} | rest])
-      ]
-    else
-      [
-        {left_attr, attr, empty(), index_attr} |
-          squeeze_module_attributes([{empty(), expr, right_expr, index_expr} | rest])
-      ]
-    end
+    replacement =
+      if Keyword.get(meta, :newlines, @newlines) >= @newlines do
+        line()
+      else
+        empty()
+      end
+
+    [
+      {left_attr, attr, replacement, index_attr} |
+        squeeze_module_attributes([{replacement, expr, right_expr, index_expr} | rest])
+    ]
   end
 
   defp squeeze_module_attributes([expr | exprs]) do
