@@ -26,7 +26,7 @@ defmodule CodeFormatter do
                                        :^^^, :in, :++, :--, :.., :<>]
 
   # Local calls that always start a new group
-  @locals_always_group [:use, :require, :import, :alias]
+  @respects_users_newlines [:@, :use, :require, :import, :alias]
 
   @locals_without_parens [
     # Special forms
@@ -377,7 +377,6 @@ defmodule CodeFormatter do
     {args_doc, state} =
       args
       |> group_blocks(:none, 0)
-      |> squeeze_module_attributes()
       |> Enum.map_reduce(state, fn {left, quoted, right, i}, state ->
            {doc, state} = quoted_to_algebra(quoted, :block, state)
            doc = if i != 0, do: concat(left, doc), else: doc
@@ -393,28 +392,45 @@ defmodule CodeFormatter do
     {group(doc), state}
   end
 
-  # The idea behind groups is that if two or more of the same
-  # local call happens together, they will be grouped together
-  # with new lines before and after as long as the user also
-  # added new lines before and after.
+  # Below are the rules for block rendering in the formatter:
   #
-  # Note use, import, require and alias can from groups as a
-  # single occurrence. All other locals require two or more.
+  #   1. remove all empty lines
+  #   2. add empty lines around expressions takes multiple lines
+  #   3. expressions that start with @, use, import, alias and require
+  #      have empty lines according to the user choice
+  #   4. grouped expressions (two or more with the same name) have
+  #      empty lines according to the user choice
+  #   5. empty lines are collapsed as to not exceed more than one
+  #
+  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], _previous, index) when
+         local in @respects_users_newlines do
+    left = group_pick(meta, line(), empty())
+    right = group_pick(group_next_meta(exprs), line(), empty())
+    entry = {left, expr, right, index}
+
+    case group_blocks(exprs, :none, index + 1) do
+      [{_, next_expr, next_right, next_index} | rest] ->
+        [entry, {right, next_expr, next_right, next_index} | rest]
+      [] ->
+        [entry]
+    end
+  end
+
   defp group_blocks([{local, meta, [_ | _]} = expr | exprs], previous, index) when
-         is_atom(local) and local not in [:@, :__aliases__, :__block__] do
+         is_atom(local) and local not in [:__aliases__, :__block__] do
     {left, next} =
       cond do
         previous == {:local, local} ->
           {break(""), previous}
         group_starting?(local, exprs) ->
-          {group_line_or_break(meta), {:local, local}}
+          {group_pick(meta, line(), break("")), {:local, local}}
         true ->
           {break(""), :none}
       end
 
     right =
       if group_ending?(exprs, next) do
-        group_line_or_break(group_next_meta(exprs))
+        group_pick(group_next_meta(exprs), line(), break(""))
       else
         break("")
       end
@@ -435,49 +451,17 @@ defmodule CodeFormatter do
   defp group_next_meta([{_, meta, _} | _]) when is_list(meta), do: meta
   defp group_next_meta(_), do: []
 
-  defp group_line_or_break(meta) do
-    if Keyword.get(meta, :newlines, @newlines) >= @newlines do
-      line()
-    else
-      break("")
-    end
+  defp group_pick(meta, multiple, single) do
+    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: multiple, else: single
   end
 
   defp group_starting?(local, exprs) do
-    local in @locals_always_group or match?([{^local, _, [_ | _]} | _], exprs)
+    match?([{^local, _, [_ | _]} | _], exprs)
   end
 
   defp group_ending?([{local, _, [_ | _]} | _], {:local, local}), do: false
   defp group_ending?(_, :none), do: false
   defp group_ending?(_, _), do: true
-
-  # Every time we see a module attribute, we check if it is
-  # immediatelly following the next expression. If so, we
-  # replace the breaks by empty documents.
-  defp squeeze_module_attributes([
-         {left_attr, {:@, _, _} = attr, _, index_attr},
-         {_, {_, meta, _} = expr, right_expr, index_expr} | rest
-       ]) when is_list(meta) do
-    replacement =
-      if Keyword.get(meta, :newlines, @newlines) >= @newlines do
-        line()
-      else
-        empty()
-      end
-
-    [
-      {left_attr, attr, replacement, index_attr} |
-        squeeze_module_attributes([{replacement, expr, right_expr, index_expr} | rest])
-    ]
-  end
-
-  defp squeeze_module_attributes([expr | exprs]) do
-    [expr | squeeze_module_attributes(exprs)]
-  end
-
-  defp squeeze_module_attributes([]) do
-    []
-  end
 
   ## Operators
 
