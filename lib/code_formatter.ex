@@ -134,7 +134,7 @@ defmodule CodeFormatter do
   """
   def to_algebra!(string, opts \\ []) when is_binary(string) and is_list(opts) do
     string
-    |> Code.string_to_quoted!(wrap_literals_in_blocks: true, unescape: false)
+    |> Code.string_to_quoted!(formatter_metadata: true, unescape: false)
     |> block_to_algebra(state(opts))
     |> elem(0)
   end
@@ -375,7 +375,7 @@ defmodule CodeFormatter do
 
     {args_doc, state} =
       args
-      |> group_blocks(nil, :none, 0)
+      |> group_blocks(:none, 0)
       |> Enum.map_reduce(state, fn {left, quoted, right, i}, state ->
            {doc, state} = quoted_to_algebra(quoted, :block, state)
            doc = if i != 0, do: concat(left, doc), else: doc
@@ -398,52 +398,45 @@ defmodule CodeFormatter do
   #
   # Note use, import, require and alias can from groups as a
   # single occurrence. All other locals require two or more.
-  defp group_blocks([{local, _, [_ | _]} = expr | exprs], line, previous, index) when is_atom(local) do
-    meta_line = group_next_line([expr])
-
+  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], previous, index) when is_atom(local) do
     {left, next} =
       cond do
         previous == {:local, local} ->
           {break(""), previous}
         group_starting?(local, exprs) ->
-          {group_line_or_break(line, meta_line), {:local, local}}
+          {group_line_or_break(meta), {:local, local}}
         true ->
           {break(""), :none}
       end
 
     right =
       if group_ending?(exprs, next) do
-        group_line_or_break(meta_line, group_next_line(exprs))
+        group_line_or_break(group_next_meta(exprs))
       else
         break("")
       end
 
     entry = {left, expr, right, index}
-    [entry | group_blocks(exprs, meta_line, next, index + 1)]
+    [entry | group_blocks(exprs, next, index + 1)]
   end
 
-  defp group_blocks([expr | exprs], _line, _previous, index) do
+  defp group_blocks([expr | exprs], _previous, index) do
     entry = {break(""), expr, break(""), index}
-    [entry | group_blocks(exprs, group_next_line([expr]), :none, index + 1)]
+    [entry | group_blocks(exprs, :none, index + 1)]
   end
 
-  defp group_blocks([], _, _, _) do
+  defp group_blocks([], _, _) do
     []
   end
 
-  defp group_next_line([{_, meta, _} | _]) when is_list(meta) do
-    meta[:line]
-  end
+  defp group_next_meta([{_, meta, _} | _]) when is_list(meta), do: meta
+  defp group_next_meta(_), do: []
 
-  defp group_next_line(_) do
-    nil
-  end
-
-  defp group_line_or_break(previous, next) do
-    if previous && next && previous + 1 == next do
-      break("")
-    else
+  defp group_line_or_break(meta) do
+    if Keyword.get(meta, :newlines, 2) >= 2 do
       line()
+    else
+      break("")
     end
   end
 
