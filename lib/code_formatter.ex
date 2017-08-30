@@ -814,25 +814,27 @@ defmodule CodeFormatter do
 
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     context = if skip_parens?, do: :no_parens_argument, else: :argument
-
-    {left, right} =
-      if keyword?(right) do
-        {kw_left, kw_right} = split_last(right)
-        {left ++ kw_left, kw_right}
-      else
-        {left, right}
-      end
-
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
     {right_doc, state} = quoted_to_algebra(right, context, state)
+    no_parens_keyword? = left != [] and skip_parens? and keyword?(right)
+
+    right_doc =
+      if no_parens_keyword? do
+        break("") |> concat(right_doc) |> nest(2) |> group()
+      else
+        right_doc
+      end
 
     doc =
       apply_cancel_break(right, right_doc, fn right_doc ->
         args_doc =
-          if left == [] do
-            right_doc
-          else
-            glue(concat(left_doc, ","), right_doc)
+          cond do
+            left == [] ->
+              right_doc
+            no_parens_keyword? ->
+              concat(concat(left_doc, ","), right_doc)
+            true ->
+              glue(concat(left_doc, ","), right_doc)
           end
 
         if skip_parens? do
@@ -1368,8 +1370,8 @@ defmodule CodeFormatter do
     apply_cancel_break?(expr)
   end
 
-  defp apply_cancel_break?(_) do
-    false
+  defp apply_cancel_break?(other) do
+    keyword?(other)
   end
 
   defp keyword?([{key, _} | list]) do

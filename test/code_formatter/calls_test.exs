@@ -145,14 +145,6 @@ defmodule CodeFormatter.CallsTest do
       ''')
       """
     end
-
-    test "with calls without parens" do
-      assert_same """
-      import :hello, foo: foo, bar: '''
-      baz
-      '''
-      """
-    end
   end
 
   describe "local calls" do
@@ -213,22 +205,28 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good, @short_length
 
-      bad = "import 123, opts: [foo: :bar]"
+      bad = "import :atom, opts: [foo: :bar]"
       good = """
-      import 123, opts: [
-        foo: :bar
-      ]
+      import :atom,
+        opts: [foo: :bar]
       """
       assert_format bad, good, @medium_length
 
-      bad = "import :long_atom, opts: [foo: :bar]"
+      bad = "import :atom, really_long_key: [foo: :bar]"
       good = """
-      import :long_atom,
-             opts: [
-               foo: :bar
-             ]
+      import :atom,
+        really_long_key: [
+          foo: :bar
+        ]
       """
       assert_format bad, good, @medium_length
+
+      assert_same """
+      import :foo,
+        one: two,
+        three: four,
+        five: [6, 7, 8, 9]
+      """, @medium_length
     end
 
     test "call on call" do
