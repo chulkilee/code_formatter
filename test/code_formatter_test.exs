@@ -644,5 +644,48 @@ bar)
       end
       """
     end
+
+    test "with module attributes" do
+      assert_same """
+      defmodule Foo do
+        @constant 1
+        @constant 2
+
+        @doc '''
+        foo
+        '''
+        def foo do
+          :ok
+        end
+
+        @spec bar :: 1
+        @spec bar :: 2
+        def bar do
+          :ok
+        end
+
+        @other_constant 3
+
+        @spec baz :: 4
+        @doc '''
+        baz
+        '''
+        def baz do
+          :ok
+        end
+
+        @another_constant 5
+        @another_constant 5
+
+        @doc '''
+        baz
+        '''
+        @spec baz :: 6
+        def baz do
+          :ok
+        end
+      end
+      """
+    end
   end
 end

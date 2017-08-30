@@ -7,6 +7,7 @@ defmodule CodeFormatter do
   @single_quote "'"
   @single_heredoc "'''"
   @keywords [:do, :rescue, :catch, :else, :after]
+  @newlines 2
 
   # Operators that do not have space between operands
   @no_space_binary_operators [:..]
@@ -376,6 +377,7 @@ defmodule CodeFormatter do
     {args_doc, state} =
       args
       |> group_blocks(:none, 0)
+      |> squeeze_module_attributes()
       |> Enum.map_reduce(state, fn {left, quoted, right, i}, state ->
            {doc, state} = quoted_to_algebra(quoted, :block, state)
            doc = if i != 0, do: concat(left, doc), else: doc
@@ -398,7 +400,8 @@ defmodule CodeFormatter do
   #
   # Note use, import, require and alias can from groups as a
   # single occurrence. All other locals require two or more.
-  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], previous, index) when is_atom(local) do
+  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], previous, index) when
+         is_atom(local) and local not in [:@, :__aliases__, :__block__] do
     {left, next} =
       cond do
         previous == {:local, local} ->
@@ -433,7 +436,7 @@ defmodule CodeFormatter do
   defp group_next_meta(_), do: []
 
   defp group_line_or_break(meta) do
-    if Keyword.get(meta, :newlines, 2) >= 2 do
+    if Keyword.get(meta, :newlines, @newlines) >= @newlines do
       line()
     else
       break("")
@@ -447,6 +450,34 @@ defmodule CodeFormatter do
   defp group_ending?([{local, _, [_ | _]} | _], {:local, local}), do: false
   defp group_ending?(_, :none), do: false
   defp group_ending?(_, _), do: true
+
+  # Every time we see a module attribute, we check if it is
+  # immediatelly following the next expression. If so, we
+  # replace the breaks by empty documents.
+  defp squeeze_module_attributes([
+         {left_attr, {:@, _, _} = attr, right_attr, index_attr},
+         {left_expr, {_, meta, _} = expr, right_expr, index_expr} | rest
+       ]) when is_list(meta) do
+    if Keyword.get(meta, :newlines, @newlines) >= @newlines do
+      [
+        {left_attr, attr, line(), index_attr} |
+          squeeze_module_attributes([{line(), expr, right_expr, index_expr} | rest])
+      ]
+    else
+      [
+        {left_attr, attr, empty(), index_attr} |
+          squeeze_module_attributes([{empty(), expr, right_expr, index_expr} | rest])
+      ]
+    end
+  end
+
+  defp squeeze_module_attributes([expr | exprs]) do
+    [expr | squeeze_module_attributes(exprs)]
+  end
+
+  defp squeeze_module_attributes([]) do
+    []
+  end
 
   ## Operators
 
