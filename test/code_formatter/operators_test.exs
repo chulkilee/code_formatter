@@ -362,6 +362,12 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "a |> b ++ c |> d", "a |> (b ++ c) |> d"
     end
 
+    test "with logical operators" do
+      assert_same "a or b or c"
+      assert_format "a or b and c", "a or (b and c)"
+      assert_format "a and b or c", "(a and b) or c"
+    end
+
     test "mixed before and after lines" do
       bad = "var :: a | b and c | d"
       good = """

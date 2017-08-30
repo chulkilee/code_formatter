@@ -80,7 +80,7 @@ defmodule CodeFormatter.IntegrationTest do
         binary_op_to_algebra(op, op_string, left, right, context, state, op_info, nesting)
 
       parent_op in @required_parens_on_binary_operands or parent_prec > prec or
-          parent_prec == prec and parent_assoc != side ->
+          (parent_prec == prec and parent_assoc != side) ->
         {operand, state} =
           binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
 

@@ -17,6 +17,9 @@ defmodule CodeFormatter do
   # Operators that start on the next line in case of breaks
   @left_new_line_before_binary_operators [:|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
 
+  # Operators that are logical cannot be mixed without parens
+  @required_parens_logical_binary_operands [:||, :|||, :or, :&&, :&&&, :and]
+
   # Operators that always require parens on operands when they are the parent
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
                                        :^^^, :in, :++, :--, :.., :<>]
@@ -518,8 +521,9 @@ defmodule CodeFormatter do
         # If the parent requires parens or the precedence is inverted or
         # it is in the wrong side, then we *need* parenthesis.
         parent_op in @required_parens_on_binary_operands or
-            parent_prec > prec or
-            parent_prec == prec and parent_assoc != side ->
+            (op in @required_parens_logical_binary_operands and
+               parent_op in @required_parens_logical_binary_operands) or
+            parent_prec > prec or (parent_prec == prec and parent_assoc != side) ->
           {operand, state} =
             binary_op_to_algebra(op, op_string, left, right, context, state, op_info, 2)
 
