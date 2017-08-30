@@ -628,6 +628,19 @@ defmodule CodeFormatter do
     {doc, state}
   end
 
+  # Mod.function()
+  # var.function
+  defp remote_to_algebra({{:., _, [target, fun]}, _, []}, _context, state) when is_atom(fun) do
+    {target_doc, state} = remote_target_to_algebra(target, state)
+    fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
+
+    if remote_target_is_a_module?(target) do
+      {target_doc |> concat(".") |> concat(fun_doc) |> concat("()"), state}
+    else
+      {target_doc |> concat(".") |> concat(fun_doc), state}
+    end
+  end
+
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, context, state) when is_atom(fun) do
     {target_doc, state} = remote_target_to_algebra(target, state)
@@ -652,6 +665,15 @@ defmodule CodeFormatter do
     doc = concat(target_doc, call_doc)
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
     {doc, state}
+  end
+
+  defp remote_target_is_a_module?(target) do
+    case target do
+      {:__MODULE__, _, context} when is_atom(context) -> true
+      {:__block__, _, [atom]} when is_atom(atom) -> true
+      {:__aliases__, _, _} -> true
+      _ -> false
+    end
   end
 
   defp remote_target_to_algebra({:fn, _, [_ | _]} = quoted, state) do

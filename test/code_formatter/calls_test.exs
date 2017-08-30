@@ -258,11 +258,11 @@ defmodule CodeFormatter.CallsTest do
     test "with no arguments" do
       assert_format "Foo . Bar . baz", "Foo.Bar.baz()"
       assert_format ":erlang.\nget_stacktrace", ":erlang.get_stacktrace()"
-      assert_format "@foo.bar", "@foo.bar()"
-      assert_format "(@foo).bar", "@foo.bar()"
+      assert_format "@foo.bar()", "@foo.bar"
+      assert_format "(@foo).bar()", "@foo.bar"
       assert_format "__MODULE__.start_link", "__MODULE__.start_link()"
-      assert_format "foo.bar.baz.bong", "foo.bar().baz().bong()"
-      assert_format "(1 + 2).foo", "(1 + 2).foo()"
+      assert_format "Foo.bar.baz.bong", "Foo.bar().baz.bong"
+      assert_format "(1 + 2).foo()", "(1 + 2).foo"
     end
 
     test "with arguments" do
@@ -295,10 +295,10 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @medium_length
 
       bad = """
-      my_function.foo().bar(2, 3).baz(4, 5)
+      My_function.foo().bar(2, 3).baz(4, 5)
       """
       good = """
-      my_function.foo().bar(
+      My_function.foo().bar(
         2,
         3
       ).baz(4, 5)
@@ -333,14 +333,14 @@ defmodule CodeFormatter.CallsTest do
     end
 
     test "wraps left side in parens if it is an anonymous function" do
-      assert_same "(fn -> :ok end).foo()"
+      assert_same "(fn -> :ok end).foo"
     end
 
     test "wraps left side in parens if it is a do-end block" do
       assert_same """
       (if true do
          :ok
-       end).foo()
+       end).foo
       """
     end
 
@@ -348,7 +348,7 @@ defmodule CodeFormatter.CallsTest do
       assert_same """
       import (if true do
                 :ok
-              end).foo()
+              end).foo
       """
     end
 
@@ -372,6 +372,10 @@ defmodule CodeFormatter.CallsTest do
       )
       """
       assert_format bad, good, @short_length
+    end
+
+    test "on vars" do
+      assert_format "foo.bar()", "foo.bar"
     end
   end
 

@@ -603,7 +603,7 @@ defmodule CodeFormatter.OperatorsTest do
     test "with integers" do
       assert_same "&1"
       assert_format "&(&1)", "& &1"
-      assert_format "&(&1.foo)", "& &1.foo()"
+      assert_format "&(&1.foo)", "& &1.foo"
     end
 
     test "with operators inside" do
@@ -659,7 +659,7 @@ defmodule CodeFormatter.OperatorsTest do
       # make sure we format it properly with proper wrapping.
       assert_same "&(1 + 2).foo/1"
 
-      assert_same "&my_function.foo().bar/3", @short_length
+      assert_same "&my_function.foo.bar/3", @short_length
     end
   end
 
