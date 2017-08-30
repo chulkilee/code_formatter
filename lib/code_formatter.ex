@@ -948,7 +948,7 @@ defmodule CodeFormatter do
       args
       |> Enum.with_index()
       |> args_to_algebra(state, &bitstring_to_algebra(&1, &2, last))
-    {container(args, "<<", args_doc, ">>"), state}
+    {surround("<<", args_doc, ">>"), state}
   end
 
   defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, last) do
@@ -996,7 +996,7 @@ defmodule CodeFormatter do
 
   defp list_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {container(args, "[", args_doc, "]"), state}
+    {surround("[", args_doc, "]"), state}
   end
 
   defp map_to_algebra(name_doc, [], state) do
@@ -1006,7 +1006,7 @@ defmodule CodeFormatter do
   defp map_to_algebra(name_doc, args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     name_doc = "%" |> concat(name_doc) |> concat("{")
-    {container(args, name_doc, args_doc, "}"), state}
+    {surround(name_doc, args_doc, "}"), state}
   end
 
   defp tuple_to_algebra([], state) do
@@ -1015,7 +1015,7 @@ defmodule CodeFormatter do
 
   defp tuple_to_algebra(args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {container(args, "{", args_doc, "}"), state}
+    {surround("{", args_doc, "}"), state}
   end
 
   defp atom_to_algebra(atom) when atom in [nil, true, false] do
@@ -1318,10 +1318,6 @@ defmodule CodeFormatter do
       _ ->
         false
     end
-  end
-
-  defp container(_args, left, doc, right) do
-    surround(left, doc, right)
   end
 
   defp apply_cancel_break(arg, doc, fun) do
