@@ -24,14 +24,19 @@ defmodule CodeFormatter do
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
                                        :^^^, :in, :++, :--, :.., :<>]
 
+  # Local calls that always start a new group
+  @locals_always_group [:use, :require, :import, :alias]
+
   @locals_without_parens [
     # Special forms
     alias: 1,
     alias: 2,
     import: 1,
     import: 2,
-    with: :*,
+    require: 1,
+    require: 2,
     for: :*,
+    with: :*,
 
     # Kernel
     def: 1,
@@ -370,11 +375,11 @@ defmodule CodeFormatter do
 
     {args_doc, state} =
       args
-      |> Enum.with_index
-      |> Enum.map_reduce(state, fn {quoted, i}, state ->
+      |> group_blocks(nil, :none, 0)
+      |> Enum.map_reduce(state, fn {left, quoted, right, i}, state ->
            {doc, state} = quoted_to_algebra(quoted, :block, state)
-           doc = if i != 0, do: concat(break(""), doc), else: doc
-           doc = if i != length, do: concat(doc, concat(collapse_lines(2), break(""))), else: doc
+           doc = if i != 0, do: concat(left, doc), else: doc
+           doc = if i != length, do: concat(doc, concat(collapse_lines(2), right)), else: doc
            {group(doc), state}
          end)
 
@@ -385,6 +390,70 @@ defmodule CodeFormatter do
     {doc, state} = quoted_to_algebra(block, :block, state)
     {group(doc), state}
   end
+
+  # The idea behind groups is that if two or more of the same
+  # local call happens together, they will be grouped together
+  # with new lines before and after as long as the user also
+  # added new lines before and after.
+  #
+  # Note use, import, require and alias can from groups as a
+  # single occurrence. All other locals require two or more.
+  defp group_blocks([{local, _, [_ | _]} = expr | exprs], line, previous, index) when is_atom(local) do
+    meta_line = group_next_line([expr])
+
+    {left, next} =
+      cond do
+        previous == {:local, local} ->
+          {break(""), previous}
+        group_starting?(local, exprs) ->
+          {group_line_or_break(line, meta_line), {:local, local}}
+        true ->
+          {break(""), :none}
+      end
+
+    right =
+      if group_ending?(exprs, next) do
+        group_line_or_break(meta_line, group_next_line(exprs))
+      else
+        break("")
+      end
+
+    entry = {left, expr, right, index}
+    [entry | group_blocks(exprs, meta_line, next, index + 1)]
+  end
+
+  defp group_blocks([expr | exprs], _line, _previous, index) do
+    entry = {break(""), expr, break(""), index}
+    [entry | group_blocks(exprs, group_next_line([expr]), :none, index + 1)]
+  end
+
+  defp group_blocks([], _, _, _) do
+    []
+  end
+
+  defp group_next_line([{_, meta, _} | _]) when is_list(meta) do
+    meta[:line]
+  end
+
+  defp group_next_line(_) do
+    nil
+  end
+
+  defp group_line_or_break(previous, next) do
+    if previous && next && previous + 1 == next do
+      break("")
+    else
+      line()
+    end
+  end
+
+  defp group_starting?(local, exprs) do
+    local in @locals_always_group or match?([{^local, _, [_ | _]} | _], exprs)
+  end
+
+  defp group_ending?([{local, _, [_ | _]} | _], {:local, local}), do: false
+  defp group_ending?(_, :none), do: false
+  defp group_ending?(_, _), do: true
 
   ## Operators
 

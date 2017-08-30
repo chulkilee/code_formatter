@@ -476,5 +476,173 @@ bar)
       end
       """
     end
+
+    test "keeps user groups" do
+      assert_same """
+      defmodule Mod do
+        field(:foo)
+        field(:bar)
+        field(:baz)
+        belongs_to(:one)
+        belongs_to(:two)
+        timestamp()
+        lock()
+        has_many(:three)
+        has_many(:four)
+        :ok
+        has_one(:five)
+        has_one(:six)
+        foo = 1
+        bar = 2
+        :before
+        baz = 3
+        :after
+      end
+      """
+    end
+
+    test "formats spaced groups" do
+      bad = """
+      defmodule Mod do
+        field(:foo)
+
+        field(:bar)
+
+        field(:baz)
+
+
+        belongs_to(:one)
+
+        belongs_to(:two)
+
+
+        timestamp()
+
+        lock()
+
+
+        has_many(:three)
+
+        has_many(:four)
+
+
+        :ok
+
+
+        has_one(:five)
+
+        has_one(:six)
+
+
+        foo = 1
+        bar = 2
+
+
+        :before
+        baz = 3
+        :after
+      end
+      """
+
+      good = """
+      defmodule Mod do
+        field(:foo)
+        field(:bar)
+        field(:baz)
+
+        belongs_to(:one)
+        belongs_to(:two)
+
+        timestamp()
+        lock()
+
+        has_many(:three)
+        has_many(:four)
+
+        :ok
+
+        has_one(:five)
+        has_one(:six)
+
+        foo = 1
+        bar = 2
+
+        :before
+        baz = 3
+        :after
+      end
+      """
+
+      assert_format bad, good
+    end
+
+    test "special forms are groups" do
+      assert_same """
+      defmodule Mod do
+        alias Foo
+        use Bar
+        import Baz
+        require Bat
+      end
+      """
+
+      assert_same """
+      defmodule Mod do
+        alias Foo
+
+        use Bar
+
+        import Baz
+
+        require Bat
+      end
+      """
+
+      assert_same """
+      defmodule Mod do
+        alias Foo1
+        alias Foo2
+
+        use Bar1
+        use Bar2
+
+        import Baz1
+        import Baz2
+
+        require Bat1
+        require Bat2
+      end
+      """
+
+      assert_same """
+      defmodule Mod do
+        alias Foo
+        1
+        use Bar
+        2
+        import Baz
+        3
+        require Bat
+      end
+      """
+
+      assert_same """
+      defmodule Mod do
+        alias Foo
+
+        1
+
+        use Bar
+
+        2
+
+        import Baz
+
+        3
+
+        require Bat
+      end
+      """
+    end
   end
 end
