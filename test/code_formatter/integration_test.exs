@@ -117,4 +117,18 @@ defmodule CodeFormatter.IntegrationTest do
     end
     """
   end
+
+  test "mixed parens and no parens calls with anonymous function" do
+    assert_same ~S"""
+    node interface do
+      resolve_type(fn
+        %{__struct__: str}, _ ->
+          str |> Model.Node.model_to_node_type()
+        value, _ ->
+          Logger.warn("Could not extract node type from value: #{inspect(value)}")
+          nil
+      end)
+    end
+    """
+  end
 end

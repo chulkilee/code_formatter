@@ -1227,7 +1227,7 @@ defmodule CodeFormatter do
   defp clause_to_algebra({:"->", _, [args, body]}, %{operand_nesting: nesting} = state) do
     {args_doc, state} = clause_args_to_algebra(args, %{state | operand_nesting: nesting + 2})
     {body_doc, state} = block_to_algebra(body, %{state | operand_nesting: nesting})
-    {concat(args_doc, " ->" |> glue(body_doc) |> nest(2)), state}
+    {concat(group(args_doc), " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
   # fn a, b, c when d -> e end
