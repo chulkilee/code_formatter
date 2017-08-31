@@ -25,9 +25,6 @@ defmodule CodeFormatter do
   @required_parens_on_binary_operands [:|>, :<<<, :>>>, :<~, :~>, :<<~, :~>>, :<~>, :<|>,
                                        :^^^, :in, :++, :--, :.., :<>]
 
-  # Local calls that always start a new group
-  @respects_users_newlines [:@, :use, :require, :import, :alias]
-
   @locals_without_parens [
     # Special forms
     alias: 1,
@@ -408,18 +405,14 @@ defmodule CodeFormatter do
 
   # Below are the rules for block rendering in the formatter:
   #
-  #   1. remove all empty lines
-  #   2. add empty lines around expressions takes multiple lines
-  #   3. expressions that start with @, use, import, alias and require
-  #      have empty lines according to the user choice
-  #   4. grouped expressions (two or more with the same name) have
-  #      empty lines according to the user choice
-  #   5. empty lines are collapsed as to not exceed more than one
+  #   1. respect the user's choice
+  #   2. and add empty lines around expressions takes multiple lines
+  #      (except for module attributes)
+  #   3. empty lines are collapsed as to not exceed more than one
   #
-  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], _previous, index) when
-         local in @respects_users_newlines do
-    left = group_pick(meta, line(), empty())
-    right = group_pick(group_next_meta(exprs), line(), empty())
+  defp group_blocks([{local, meta, _} = expr | exprs], _previous, index) when is_list(meta) do
+    left = group_line_separator(local, meta)
+    right = group_next_line_separator(exprs, local)
     entry = {left, expr, right, index}
 
     case group_blocks(exprs, :none, index + 1) do
@@ -430,52 +423,25 @@ defmodule CodeFormatter do
     end
   end
 
-  defp group_blocks([{local, meta, [_ | _]} = expr | exprs], previous, index) when
-         is_atom(local) and local not in [:__aliases__, :__block__] do
-    {left, next} =
-      cond do
-        previous == {:local, local} ->
-          {break(""), previous}
-        group_starting?(local, exprs) ->
-          {group_pick(meta, line(), break("")), {:local, local}}
-        true ->
-          {break(""), :none}
-      end
-
-    right =
-      if group_ending?(exprs, next) do
-        group_pick(group_next_meta(exprs), line(), break(""))
-      else
-        break("")
-      end
-
-    entry = {left, expr, right, index}
-    [entry | group_blocks(exprs, next, index + 1)]
-  end
-
-  defp group_blocks([expr | exprs], _previous, index) do
-    entry = {break(""), expr, break(""), index}
-    [entry | group_blocks(exprs, :none, index + 1)]
-  end
-
   defp group_blocks([], _, _) do
     []
   end
 
-  defp group_next_meta([{_, meta, _} | _]) when is_list(meta), do: meta
-  defp group_next_meta(_), do: []
-
-  defp group_pick(meta, multiple, single) do
-    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: multiple, else: single
+  defp group_next_line_separator([{_, meta, _} | _], local) when is_list(meta) do
+    group_line_separator(local, meta)
   end
 
-  defp group_starting?(local, exprs) do
-    match?([{^local, _, [_ | _]} | _], exprs)
+  defp group_next_line_separator([], _) do
+    line()
   end
 
-  defp group_ending?([{local, _, [_ | _]} | _], {:local, local}), do: false
-  defp group_ending?(_, :none), do: false
-  defp group_ending?(_, _), do: true
+  defp group_line_separator(:@, meta) do
+    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: line(), else: empty()
+  end
+
+  defp group_line_separator(_, meta) do
+    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: line(), else: break("")
+  end
 
   ## Operators
 
