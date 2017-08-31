@@ -195,6 +195,7 @@ defmodule CodeFormatter.CallsTest do
 
     test "without parens" do
       assert_same "import :foo, :bar"
+      assert_same "bar = if foo, do: bar, else: baz"
     end
 
     test "without parens on line limit" do
@@ -516,27 +517,7 @@ defmodule CodeFormatter.CallsTest do
 
   describe "do-end blocks" do
     test "with non-block keywords" do
-      bad = "foo do: nil"
-      good = """
-      foo do
-        nil
-      end
-      """
-      assert_format bad, good
-
-      bad = "foo else: this, do: that"
-      good = """
-      foo do
-        that
-      else
-        this
-      end
-      """
-      assert_format bad, good
-
-      assert_same "foo(do: this, do: that)"
-      assert_same "foo(do: this, other: that)"
-      assert_same "foo(do: this, else: this, else: that)"
+      assert_same "foo(do: nil)"
     end
 
     test "with multiple keywords" do

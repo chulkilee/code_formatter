@@ -424,8 +424,8 @@ bar)
       foo =
         bar(one)
 
-      abc =
-        def(ghi)
+      one =
+        two(ghi)
 
       baz =
         bat(two)
@@ -572,6 +572,14 @@ bar)
       """
 
       assert_format bad, good
+    end
+
+    test "with multiple defs" do
+      assert_same """
+      def foo(:one), do: 1
+      def foo(:two), do: 2
+      def foo(:three), do: 3
+      """
     end
 
     test "with module attributes" do

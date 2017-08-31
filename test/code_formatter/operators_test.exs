@@ -531,13 +531,11 @@ defmodule CodeFormatter.OperatorsTest do
     end
 
     test "with do-end block" do
-      bad = "@attr for x <- y, do: z"
-      good = """
+      assert_same """
       @attr (for x <- y do
                z
              end)
       """
-      assert_format bad, good
     end
 
     test "is parenthesized when setting inside a call" do
