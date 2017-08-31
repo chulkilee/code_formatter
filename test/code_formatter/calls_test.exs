@@ -756,6 +756,18 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good
     end
+
+    test "keeps repeated keys" do
+      assert_same """
+      receive do
+        :ok
+      after
+        0 -> 1
+      after
+        2 -> 3
+      end
+      """
+    end
   end
 
   describe "tuple calls" do

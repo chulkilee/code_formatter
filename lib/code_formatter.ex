@@ -348,18 +348,14 @@ defmodule CodeFormatter do
     {wrap_in_parens(block), state}
   end
 
-  defp quoted_to_algebra({:__aliases__, meta, [head | tail]}, context, state) do
-    if meta[:format] == :alias do
-      {doc, state} =
-        if is_atom(head) do
-          {Atom.to_string(head), state}
-        else
-          quoted_to_algebra_with_parens_if_necessary(head, context, state)
-        end
-      {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
-    else
-      local_to_algebra(:__aliases__, [head | tail], context, state)
-    end
+  defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, context, state) do
+    {doc, state} =
+      if is_atom(head) do
+        {Atom.to_string(head), state}
+      else
+        quoted_to_algebra_with_parens_if_necessary(head, context, state)
+      end
+    {Enum.reduce(tail, doc, &concat(&2, "." <> Atom.to_string(&1))), state}
   end
 
   # &1
@@ -504,7 +500,7 @@ defmodule CodeFormatter do
   end
 
   defp unary_op_to_algebra(op, _meta, arg, context, state) do
-    {doc, state} = quoted_to_algebra(arg, operand_if_block(context), state)
+    {doc, state} = quoted_to_algebra(arg, if_operand_or_block(context, :operand), state)
 
     # not and ! are nestable, all others are not.
     wrapped_doc =
@@ -553,9 +549,14 @@ defmodule CodeFormatter do
 
   defp binary_op_to_algebra(op, op_string, meta, left_arg, right_arg, context, state, parent_info, nesting) do
     op_info = Code.Identifier.binary_op(op)
-    op_context = operand_if_block(context)
-    {left, state} = binary_operand_to_algebra(left_arg, op_context, state, op, op_info, :left, 2)
-    {right, state} = binary_operand_to_algebra(right_arg, op_context, state, op, op_info, :right, 0)
+    left_context = if_operand_or_block(context, :argument)
+    right_context = if_operand_or_block(context, :operand)
+
+    {left, state} =
+      binary_operand_to_algebra(left_arg, left_context, state, op, op_info, :left, 2)
+
+    {right, state} =
+      binary_operand_to_algebra(right_arg, right_context, state, op, op_info, :right, 0)
 
     doc =
       cond do
@@ -952,14 +953,14 @@ defmodule CodeFormatter do
   defp do_end_blocks_to_algebra(blocks, state) do
     {acc, state} = do_end_block_to_algebra(:do, Keyword.fetch!(blocks, :do), state)
 
-    Enum.reduce(@do_end_keywords, {acc, state}, fn key, {acc, state} ->
-      case Keyword.fetch(blocks, key) do
-        {:ok, value} ->
-          {doc, state} = do_end_block_to_algebra(key, value, state)
-          {line(acc, doc), state}
-        :error ->
-          {acc, state}
-      end
+    ordered =
+      for key <- @do_end_keywords,
+          value <- Keyword.get_values(blocks, key),
+          do: {key, value}
+
+    Enum.reduce(ordered, {acc, state}, fn {key, value}, {acc, state} ->
+      {doc, state} = do_end_block_to_algebra(key, value, state)
+      {line(acc, doc), state}
     end)
   end
 
@@ -1340,8 +1341,9 @@ defmodule CodeFormatter do
 
   ## Quoted helpers
 
-  defp operand_if_block(:block), do: :operand
-  defp operand_if_block(other), do: other
+  defp if_operand_or_block(:operand, choice), do: choice
+  defp if_operand_or_block(:block, choice), do: choice
+  defp if_operand_or_block(other, _choice), do: other
 
   defp quoted_to_algebra_with_parens_if_necessary(ast, context, state) do
     {doc, state} = quoted_to_algebra(ast, context, state)

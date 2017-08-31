@@ -157,4 +157,18 @@ defmodule CodeFormatter.IntegrationTest do
     end
     """
   end
+
+  test "mix of left and right operands" do
+    assert_same """
+    defp server_get_modules(handlers) do
+      for(handler(module: module) <- handlers, do: module)
+      |> :ordsets.from_list()
+      |> :ordsets.to_list()
+    end
+    """
+
+    assert_same """
+    neighbours = for({_, _} = t <- neighbours, do: t) |> :sets.from_list()
+    """
+  end
 end
