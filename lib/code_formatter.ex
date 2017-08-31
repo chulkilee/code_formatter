@@ -144,12 +144,12 @@ defmodule CodeFormatter do
 
   ## Keeping input formatting
 
-  The formatter respects the input format in many cases. Those are
+  The formatter respects the input format in some cases. Those are
   listed below:
 
-    * The amount of digits in numbers. For example, `0x0000` does not
-      have insignificant digits trailed. The formatter however does
-      insert underscore for decimal numbers with more than 5 digits
+    * Insignificant digits in numbers are kept as is. The formatter
+      however inserts underscores for decimal numbers with more than
+      5 digits
 
     * Strings, charlists, atoms and sigils are kept as is. No character
       is automatically escaped or unescaped. The choice of delimiter is
@@ -163,9 +163,16 @@ defmodule CodeFormatter do
     * The choice between `:do` keyword and `do/end` blocks is left
       to the user
 
-  The behaviours above are not a guarantee. We may remove or add new
-  rules in the future. The goal of documenting them is to provide more
-  understand on how to use the formatter and on how it works.
+    * Lists, tuples, bitstrings, maps, and structs will be expanded if
+      they were also expanded in the input. For example with a newline
+      after `[` and another before `]` in lists
+
+    * Pipeline operators, like `|>` and others with the same precedence,
+      will span multiple lines if they spanned multiple lines in the input
+
+  The behaviours above are not guaranteed. We may remove or add new
+  rules in the future. The goal of documenting them is to provide better
+  understanding on what to expect from the formatter.
   """
   def format!(string, opts \\ []) when is_binary(string) and is_list(opts) do
     line_length = Keyword.get(opts, :line_length, @line_length)
