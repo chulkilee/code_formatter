@@ -204,6 +204,10 @@ defmodule CodeFormatter.CallsTest do
              :other_arg
       """
       assert_format bad, good, @short_length
+    end
+
+    test "without parens and with keyword expressions on line limit" do
+      assert_same "import :atom, opts: [foo: :bar]"
 
       bad = "import :atom, opts: [foo: :bar]"
       good = """
@@ -227,6 +231,16 @@ defmodule CodeFormatter.CallsTest do
         three: four,
         five: [6, 7, 8, 9]
       """, @medium_length
+
+      bad = "with :really_long_atom1, :really_long_atom2, opts: [foo: :bar]"
+      good = """
+      with :really_long_atom1,
+           :really_long_atom2,
+           opts: [
+             foo: :bar
+           ]
+      """
+      assert_format bad, good, @medium_length
     end
 
     test "call on call" do

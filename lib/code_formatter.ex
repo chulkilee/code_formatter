@@ -140,9 +140,23 @@ defmodule CodeFormatter do
     |> elem(0)
   end
 
-  defp state(_opts) do
-    %{locals_without_parens: @locals_without_parens,
-      operand_nesting: 2}
+
+  defp state(opts) do
+    rename_deprecated_at =
+      if version = opts[:rename_deprecated_at] do
+        case Version.parse(version) do
+          {:ok, parsed} ->
+            parsed
+          :error ->
+            raise ArgumentError, "invalid version #{inspect(version)} given to :rename_deprecated_at"
+        end
+      end
+
+    %{
+      locals_without_parens: @locals_without_parens,
+      operand_nesting: 2,
+      rename_deprecated_at: rename_deprecated_at
+    }
   end
 
   # Special AST nodes from compiler feedback.
@@ -670,11 +684,11 @@ defmodule CodeFormatter do
     end
   end
 
-  defp capture_target_to_algebra({:/, _, [{{:., _, [target, name]}, _, []}, {:__block__, _, [arity]}]}, _context, state)
-      when is_atom(name) and is_integer(arity) do
-    {doc, state} = remote_target_to_algebra(target, state)
-    name = Code.Identifier.inspect_as_function(name)
-    {{doc |> nest(1) |> concat(string(".#{name}/#{arity}")), state}, false}
+  defp capture_target_to_algebra({:/, _, [{{:., _, [target, fun]}, _, []}, {:__block__, _, [arity]}]}, _context, state)
+      when is_atom(fun) and is_integer(arity) do
+    {target_doc, state} = remote_target_to_algebra(target, state)
+    fun = remote_fun_to_algebra(target, fun, arity, state)
+    {{target_doc |> nest(1) |> concat(string(".#{fun}/#{arity}")), state}, false}
   end
 
   defp capture_target_to_algebra({:/, _, [{name, _, var_context}, {:__block__, _, [arity]}]}, _context, state)
@@ -709,27 +723,24 @@ defmodule CodeFormatter do
   # var.function
   defp remote_to_algebra({{:., _, [target, fun]}, _, []}, _context, state) when is_atom(fun) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    fun_doc = fun |> Code.Identifier.inspect_as_function() |> string()
+    fun = remote_fun_to_algebra(target, fun, 0, state)
 
     if remote_target_is_a_module?(target) do
-      {target_doc |> concat(".") |> concat(fun_doc) |> concat("()"), state}
+      {target_doc |> concat(".") |> concat(string(fun)) |> concat("()"), state}
     else
-      {target_doc |> concat(".") |> concat(fun_doc), state}
+      {target_doc |> concat(".") |> concat(string(fun)), state}
     end
   end
 
   # expression.function(arguments)
   defp remote_to_algebra({{:., _, [target, fun]}, _, args}, context, state) when is_atom(fun) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {{call_doc, state}, wrap_in_parens?} = call_args_to_algebra(args, context, :skip_if_do_end, state)
+    fun = remote_fun_to_algebra(target, fun, length(args), state)
 
-    fun_doc =
-      fun
-      |> Code.Identifier.inspect_as_function()
-      |> string()
-      |> concat(call_doc)
+    {{call_doc, state}, wrap_in_parens?} =
+      call_args_to_algebra(args, context, :skip_if_do_end, state)
 
-    doc = concat(concat(target_doc, "."), fun_doc)
+    doc = concat(concat(target_doc, "."), concat(string(fun), call_doc))
     doc = if wrap_in_parens?, do: wrap_in_parens(doc), else: doc
     {doc, state}
   end
@@ -752,6 +763,32 @@ defmodule CodeFormatter do
       _ -> false
     end
   end
+
+  defp remote_fun_to_algebra(target, fun, arity, state) do
+    %{rename_deprecated_at: since} = state
+
+    atom_target =
+      case since && target do
+        {:__aliases__, _, [alias | _] = aliases} when is_atom(alias) ->
+          Module.concat(aliases)
+        {:__block__, _, [atom]} when is_atom(atom) ->
+          atom
+        _ ->
+          nil
+      end
+
+    with {fun, requirement} <- deprecated(atom_target, fun, arity),
+         true <- Version.match?(since, requirement) do
+      fun
+    else
+      _ -> Code.Identifier.inspect_as_function(fun)
+    end
+  end
+
+  # We can only rename functions in the same module because
+  # introducing a new module may wrong due to aliases.
+  defp deprecated(Enum, :partition, 2), do: {"split_with", "~> 1.4"}
+  defp deprecated(_, _, _), do: :error
 
   defp remote_target_to_algebra({:fn, _, [_ | _]} = quoted, state) do
     # This change is not semantically required but for beautification.
@@ -823,7 +860,7 @@ defmodule CodeFormatter do
 
     right_doc =
       if no_parens_keyword? and not multiple_generators? do
-        break("") |> concat(right_doc) |> nest(2) |> group()
+        break() |> concat(right_doc) |> group()
       else
         right_doc
       end
@@ -842,12 +879,18 @@ defmodule CodeFormatter do
               glue(concat(left_doc, ","), right_doc)
           end
 
-        if skip_parens? do
-          " "
-          |> concat(nest(args_doc, :cursor, :break))
-          |> group()
-        else
-          surround("(", args_doc, ")", :break)
+        cond do
+          no_parens_keyword? ->
+            " "
+            |> concat(nest(args_doc, :cursor, :break))
+            |> nest(2)
+            |> group()
+          skip_parens? ->
+            " "
+            |> concat(nest(args_doc, :cursor, :break))
+            |> group()
+          true ->
+            surround("(", args_doc, ")", :break)
         end
       end)
 
