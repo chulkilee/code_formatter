@@ -282,6 +282,30 @@ bar)
     test "uses block context for the body of each clause" do
       assert_same "fn -> @foo bar end"
     end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      fn
+        1 ->
+          :ok
+        2 ->
+          :ok
+      end
+      """
+
+      assert_same """
+      fn
+        1 ->
+          :ok
+
+        2 ->
+          :ok
+
+        3 ->
+          :ok
+      end
+      """
+    end
   end
 
   describe "anonymous functions types" do
@@ -376,6 +400,30 @@ bar)
       (
         () -> :ok1
         () -> :ok2
+      )
+      """
+    end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      (
+        1 ->
+          :ok
+        2 ->
+          :ok
+      )
+      """
+
+      assert_same """
+      (
+        1 ->
+          :ok
+
+        2 ->
+          :ok
+
+        3 ->
+          :ok
       )
       """
     end

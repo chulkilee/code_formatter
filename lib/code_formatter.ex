@@ -1229,8 +1229,9 @@ defmodule CodeFormatter do
   #     block2
   # end
   defp anon_fun_to_algebra(clauses, state) do
-    {clauses_docs, state} = clauses_to_algebra(clauses, state)
-    {"fn" |> line(group(clauses_docs)) |> nest(2) |> line("end") |> force_break(), state}
+    {clauses_doc, state} = clauses_to_algebra(clauses, state)
+    clauses_doc = clauses_doc |> maybe_force_clauses(clauses) |> group()
+    {"fn" |> line(clauses_doc) |> nest(2) |> line("end") |> force_break(), state}
   end
 
   ## Type functions
@@ -1277,11 +1278,20 @@ defmodule CodeFormatter do
   #     block2
   # )
   defp type_fun_to_algebra(clauses, state) do
-    {clauses_docs, state} = clauses_to_algebra(clauses, state)
-    {"(" |> line(group(clauses_docs)) |> nest(2) |> line(")") |> force_break(), state}
+    {clauses_doc, state} = clauses_to_algebra(clauses, state)
+    clauses_doc = clauses_doc |> maybe_force_clauses(clauses) |> group()
+    {"(" |> line(clauses_doc) |> nest(2) |> line(")") |> force_break(), state}
   end
 
   ## Clauses
+
+  defp maybe_force_clauses(doc, clauses) do
+    if Enum.any?(clauses, fn {:"->", meta, _} -> Keyword.get(meta, :eol, false) end) do
+      force_break(doc)
+    else
+      doc
+    end
+  end
 
   defp clauses_to_algebra([{:"->", _, _} = clause | clauses], state) do
     {clause_doc, state} = clause_to_algebra(clause, state)
