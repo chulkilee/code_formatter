@@ -118,6 +118,48 @@ defmodule CodeFormatter do
 
   @doc """
   Formats the given code `string`.
+
+  The formatter is opinionated by design and provides little to no
+  configuration. The formatter also never changes the semantics of
+  the code.
+
+  ## Options
+
+    * `:locals_without_parens` - a keyword list of name and arity
+      pairs that should be kept without parens whenever possible.
+      The arity may be the atom `:*`, which implies all arities of
+      that name. The formatter already includes a list of functions
+      and this option augments this list.
+
+    * `:rename_deprecated_at` - rename all known deprecated functions
+      at the given version to their non-deprecated equivalent. It
+      expects a valid `Version` which is usually the minimum Elixir
+      version supported by the project.
+
+  ## Keeping input formatting
+
+  The formatter respects the input format in many cases. Those are
+  listed below:
+
+    * The amount of digits in numbers. For example, `0x0000` does not
+      have insignificant digits trailed. The formatter however does
+      insert underscore for decimal numbers with more than 5 digits
+
+    * Strings, charlists, atoms and sigils are kept as is. No character
+      is automatically escaped or unescaped. The choice of delimiter is
+      also respected from the input
+
+    * Newlines inside blocks are kept as in the input except for:
+      1) expressions that take multiple lines will always have an empty
+      line before and after and 2) empty lines are always squeezed
+      together into a single empty line
+
+    * The choice between `:do` keyword and `do/end` blocks is left
+      to the user
+
+  The behaviours above are not a guarantee. We may remove or add new
+  rules in the future. The goal of documenting them is to provide more
+  understand on how to use the formatter and on how it works.
   """
   def format!(string, opts \\ []) when is_binary(string) and is_list(opts) do
     line_length = Keyword.get(opts, :line_length, @line_length)
@@ -137,7 +179,6 @@ defmodule CodeFormatter do
     |> elem(0)
   end
 
-
   defp state(opts) do
     rename_deprecated_at =
       if version = opts[:rename_deprecated_at] do
@@ -149,8 +190,10 @@ defmodule CodeFormatter do
         end
       end
 
+    locals_without_parens = Keyword.get(opts, :locals_without_parens, [])
+
     %{
-      locals_without_parens: @locals_without_parens,
+      locals_without_parens: locals_without_parens ++ @locals_without_parens,
       operand_nesting: 2,
       rename_deprecated_at: rename_deprecated_at
     }

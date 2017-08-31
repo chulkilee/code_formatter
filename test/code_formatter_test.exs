@@ -641,5 +641,11 @@ bar)
       assert_same "Enum.partition(foo, bar)",
                   rename_deprecated_at: "1.3.0"
     end
+
+    test "raises on invalid version" do
+      assert_raise ArgumentError, ~r"invalid version", fn ->
+        assert_same "Enum.partition(foo, bar)", rename_deprecated_at: "1.3"
+      end
+    end
   end
 end

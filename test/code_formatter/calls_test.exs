@@ -243,6 +243,12 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @medium_length
     end
 
+    test "without parens from option" do
+      assert_format "foo bar", "foo(bar)"
+      assert_same "foo bar", locals_without_parens: [foo: 1]
+      assert_same "foo bar", locals_without_parens: [foo: :*]
+    end
+
     test "call on call" do
       assert_same "unquote(call)()"
       assert_same "unquote(call)(one, two)"
