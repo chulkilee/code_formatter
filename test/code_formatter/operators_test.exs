@@ -183,6 +183,25 @@ defmodule CodeFormatter.OperatorsTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      foo
+      |> bar
+      """
+
+      bad = """
+      foo |>
+        bar
+      """
+
+      good = """
+      foo
+      |> bar
+      """
+
+      assert_format bad, good
+    end
   end
 
   describe "binary with following new line" do

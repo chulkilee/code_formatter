@@ -145,4 +145,16 @@ defmodule CodeFormatter.IntegrationTest do
               test_file: nil
     """
   end
+
+  test "mix of operators and arguments" do
+    assert_same """
+    def count(%{path: path, line_or_bytes: bytes}) do
+      case File.stat(path) do
+        {:ok, %{size: 0}} -> {:error, __MODULE__}
+        {:ok, %{size: size}} -> {:ok, div(size, bytes) + if(rem(size, bytes) == 0, do: 0, else: 1)}
+        {:error, reason} -> raise File.Error, reason: reason, action: "stream", path: path
+      end
+    end
+    """
+  end
 end
