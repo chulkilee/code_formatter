@@ -201,6 +201,42 @@ defmodule CodeFormatter.ContainersTest do
       }
       """
       assert_format bad, good, @short_length
+
+      assert_same """
+      %{
+        a(1, 2) => b,
+        c(3, 4) => d
+      }
+      """, @short_length
+
+      assert_same """
+      %{
+        a => fn x ->
+          y
+        end,
+        b => fn y ->
+          z
+        end
+      }
+      """, @short_length
+
+      assert_same """
+      %{
+        a => for(
+          y <- x,
+          z <- y,
+          do: 123
+        )
+      }
+      """, @short_length
+
+      assert_same """
+      %{
+        a => for do
+          :ok
+        end
+      }
+      """, @short_length
     end
 
     test "removes trailing comma" do

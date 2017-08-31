@@ -12,7 +12,7 @@ defmodule CodeFormatter do
   # Operators that do not have space between operands
   @no_space_binary_operators [:..]
 
-  # Operators that do not have newline between operands
+  # Operators that do not have newline between operands (as well as => and keywords)
   @no_newline_binary_operators [:\\, :in]
 
   # Operators that start on the next line in case of breaks
@@ -124,6 +124,9 @@ defmodule CodeFormatter do
   the code.
 
   ## Options
+
+    * `:line_length` - the line length to aim for when formatting
+      the document
 
     * `:locals_without_parens` - a keyword list of name and arity
       pairs that should be kept without parens whenever possible.
@@ -449,7 +452,7 @@ defmodule CodeFormatter do
   # Below are the rules for block rendering in the formatter:
   #
   #   1. respect the user's choice
-  #   2. and add empty lines around expressions takes multiple lines
+  #   2. and add empty lines around expressions that take multiple lines
   #      (except for module attributes)
   #   3. empty lines are collapsed as to not exceed more than one
   #
@@ -585,7 +588,7 @@ defmodule CodeFormatter do
           doc = glue(left, concat(op_string, right))
           if op_info == parent_info, do: doc, else: group(doc)
         true ->
-          apply_cancel_break(right_arg, right, fn right ->
+          apply_next_break_fits(right_arg, right, fn right ->
             op_string = " " <> op_string
             concat(left, group(nest(glue(op_string, group(right)), nesting, :break)))
           end)
@@ -876,7 +879,7 @@ defmodule CodeFormatter do
       end
 
     doc =
-      apply_cancel_break(right, right_doc, fn right_doc ->
+      apply_next_break_fits(right, right_doc, fn right_doc ->
         args_doc =
           cond do
             left == [] ->
@@ -1089,12 +1092,15 @@ defmodule CodeFormatter do
   defp atom_to_algebra(atom) do
     string = Atom.to_string(atom)
 
-    case Code.Identifier.classify(atom) do
-      type when type in [:callable_local, :callable_operator, :not_callable] ->
-        [?:, string] |> IO.iodata_to_binary |> string()
-      _ ->
-        [?:, ?", String.replace(string, "\"", "\\\""), ?"] |> IO.iodata_to_binary |> string()
-    end
+    iodata =
+      case Code.Identifier.classify(atom) do
+        type when type in [:callable_local, :callable_operator, :not_callable] ->
+          [?:, string]
+        _ ->
+          [?:, ?", String.replace(string, "\"", "\\\""), ?"]
+      end
+
+    iodata |> IO.iodata_to_binary |> string()
   end
 
   defp integer_to_algebra(text) do
@@ -1388,55 +1394,55 @@ defmodule CodeFormatter do
     end
   end
 
-  defp apply_cancel_break(arg, doc, fun) do
-    if apply_cancel_break?(arg) do
+  defp apply_next_break_fits(arg, doc, fun) do
+    if apply_next_break_fits?(arg) do
       doc
-      |> cancel_break(:enabled)
+      |> next_break_fits(:enabled)
       |> fun.()
-      |> cancel_break(:disabled)
+      |> next_break_fits(:disabled)
     else
       fun.(doc)
     end
   end
 
-  defp apply_cancel_break?({:<<>>, meta, [_ | _] = entries}) do
+  defp apply_next_break_fits?({:<<>>, meta, [_ | _] = entries}) do
     meta[:format] == :bin_heredoc or not interpolated?(entries)
   end
 
-  defp apply_cancel_break?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
+  defp apply_next_break_fits?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
     meta[:format] == :list_heredoc
   end
 
-  defp apply_cancel_break?({:{}, _, _}) do
+  defp apply_next_break_fits?({:{}, _, _}) do
     true
   end
 
-  defp apply_cancel_break?({:__block__, _meta, [{_, _}]}) do
+  defp apply_next_break_fits?({:__block__, _meta, [{_, _}]}) do
     true
   end
 
-  defp apply_cancel_break?({:__block__, meta, [string]}) when is_binary(string) do
+  defp apply_next_break_fits?({:__block__, meta, [string]}) when is_binary(string) do
     meta[:format] == :bin_heredoc
   end
 
-  defp apply_cancel_break?({:__block__, meta, [list]}) when is_list(list) do
+  defp apply_next_break_fits?({:__block__, meta, [list]}) when is_list(list) do
     meta[:format] != :charlist
   end
 
-  defp apply_cancel_break?({form, _, [_ | _]}) when form in [:fn, :%{}, :%] do
+  defp apply_next_break_fits?({form, _, [_ | _]}) when form in [:fn, :%{}, :%] do
     true
   end
 
-  defp apply_cancel_break?({fun, meta, args}) when is_atom(fun) and is_list(args) do
+  defp apply_next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
     meta[:terminator] in [@double_heredoc, @single_heredoc] and
       (fun |> Atom.to_string() |> String.starts_with?("sigil_"))
   end
 
-  defp apply_cancel_break?({{:__block__, _, [atom]}, expr}) when is_atom(atom) do
-    apply_cancel_break?(expr)
+  defp apply_next_break_fits?({{:__block__, _, [atom]}, expr}) when is_atom(atom) do
+    apply_next_break_fits?(expr)
   end
 
-  defp apply_cancel_break?(other) do
+  defp apply_next_break_fits?(other) do
     keyword?(other)
   end
 

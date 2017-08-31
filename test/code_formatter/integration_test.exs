@@ -111,7 +111,7 @@ defmodule CodeFormatter.IntegrationTest do
 
   test "function with operator and pipeline" do
     assert_same """
-    defp apply_cancel_break?({fun, meta, args}) when is_atom(fun) and is_list(args) do
+    defp apply_next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
       meta[:terminator] in [@double_heredoc, @single_heredoc] and
         fun |> Atom.to_string() |> String.starts_with?("sigil_")
     end

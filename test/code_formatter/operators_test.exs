@@ -557,7 +557,7 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "@(Foo.Bar).Baz", "(@(Foo.Bar)).Baz"
     end
 
-    test "with cancel break" do
+    test "with next break fits" do
       assert_same """
       @doc '''
       foo
@@ -571,7 +571,7 @@ defmodule CodeFormatter.OperatorsTest do
       """, @short_length
     end
 
-    test "without cancel break" do
+    test "without next break fits" do
       bad = "@really_long_expr foo + bar"
 
       good = """

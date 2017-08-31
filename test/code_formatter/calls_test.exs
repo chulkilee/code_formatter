@@ -6,7 +6,7 @@ defmodule CodeFormatter.CallsTest do
   @short_length [line_length: 10]
   @medium_length [line_length: 20]
 
-  describe "cancel break" do
+  describe "next break fits" do
     test "does not apply to function calls" do
       bad = "foo(very_long_call(bar))"
       good = """
@@ -196,6 +196,15 @@ defmodule CodeFormatter.CallsTest do
     test "without parens" do
       assert_same "import :foo, :bar"
       assert_same "bar = if foo, do: bar, else: baz"
+
+      assert_same """
+      for :one,
+          :two,
+          :three,
+          fn ->
+            :ok
+          end
+      """, @short_length
     end
 
     test "without parens on line limit" do
