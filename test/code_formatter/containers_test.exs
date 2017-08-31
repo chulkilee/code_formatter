@@ -47,6 +47,16 @@ defmodule CodeFormatter.ContainersTest do
       }
       """, @short_length
     end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      {
+        :hello,
+        :foo,
+        :bar
+      }
+      """
+    end
   end
 
   describe "lists" do
@@ -84,7 +94,8 @@ defmodule CodeFormatter.ContainersTest do
       [
         11,
         22,
-        33 | 44
+        33
+        | 44
       ]
       """
       assert_format bad, good, @short_length
@@ -96,7 +107,8 @@ defmodule CodeFormatter.ContainersTest do
       [
         1,
         2,
-        3 | 4
+        3
+        | 4
       ]
       """
       assert_format bad, good, @short_length
@@ -108,8 +120,8 @@ defmodule CodeFormatter.ContainersTest do
       [
         1,
         2,
-        3 |
-          really_long_expression()
+        3
+        | really_long_expression()
       ]
       """
       assert_format bad, good, @short_length
@@ -139,6 +151,16 @@ defmodule CodeFormatter.ContainersTest do
       assert_same ~S(["with spaces": 1])
       assert_same ~S(["one #{two} three": 1])
       assert_format ~S(["Foo": 1, "Bar": 2]), ~S([Foo: 1, Bar: 2])
+    end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      [
+        :hello,
+        :foo,
+        :bar
+      ]
+      """
     end
   end
 
@@ -180,6 +202,16 @@ defmodule CodeFormatter.ContainersTest do
       >>
       """
       assert_format bad, good, @short_length
+    end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      <<
+        :hello,
+        :foo,
+        :bar
+      >>
+      """
     end
   end
 
@@ -253,6 +285,16 @@ defmodule CodeFormatter.ContainersTest do
       }
       """, @short_length
     end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      %{
+        :hello => 1,
+        :foo => 2,
+        :bar => 3
+      }
+      """
+    end
   end
 
   describe "maps with update" do
@@ -264,8 +306,8 @@ defmodule CodeFormatter.ContainersTest do
       bad = "%{foo | 1 => 2, 3 => 4}"
       good = """
       %{
-        foo |
-          1 => 2,
+        foo
+        | 1 => 2,
           3 => 4
       }
       """
@@ -281,11 +323,22 @@ defmodule CodeFormatter.ContainersTest do
 
       assert_same """
       %{
-        foo |
-          :foo => :bar,
+        foo
+        | :foo => :bar,
           baz: :bat
       }
       """, @short_length
+    end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      %{
+        foo
+        | :hello => 1,
+          :foo => 2,
+          :bar => 3
+      }
+      """
     end
   end
 
@@ -324,6 +377,16 @@ defmodule CodeFormatter.ContainersTest do
       }
       """, @short_length
     end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      %Foo{
+        :hello => 1,
+        :foo => 2,
+        :bar => 3
+      }
+      """
+    end
   end
 
   describe "struct with update" do
@@ -335,8 +398,8 @@ defmodule CodeFormatter.ContainersTest do
       bad = "%struct{foo | 1 => 2, 3 => 4}"
       good = """
       %struct{
-        foo |
-          1 => 2,
+        foo
+        | 1 => 2,
           3 => 4
       }
       """
@@ -352,11 +415,22 @@ defmodule CodeFormatter.ContainersTest do
 
       assert_same """
       %struct{
-        foo |
-          :foo => :bar,
+        foo
+        | :foo => :bar,
           baz: :bat
       }
       """, @short_length
+    end
+
+    test "preserves user choice even when it fits" do
+      assert_same """
+      %Foo{
+        foo
+        | :hello => 1,
+          :foo => 2,
+          :bar => 3
+      }
+      """
     end
   end
 end

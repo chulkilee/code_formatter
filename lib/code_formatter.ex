@@ -15,8 +15,11 @@ defmodule CodeFormatter do
   # Operators that do not have newline between operands (as well as => and keywords)
   @no_newline_binary_operators [:\\, :in]
 
-  # Operators that start on the next line in case of breaks
+  # Left associative operators that start on the next line in case of breaks
   @left_new_line_before_binary_operators [:|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
+
+  # Right associative operators that start on the next line in case of breaks
+  @right_new_line_before_binary_operators [:|]
 
   # Operators that are logical cannot be mixed without parens
   @required_parens_logical_binary_operands [:||, :|||, :or, :&&, :&&&, :and]
@@ -222,7 +225,7 @@ defmodule CodeFormatter do
       entries == [] ->
         {"<<>>", state}
       not interpolated?(entries) ->
-        bitstring_to_algebra(entries, state)
+        bitstring_to_algebra(meta, entries, state)
       meta[:format] == :bin_heredoc ->
         initial = @double_heredoc |> concat(line()) |> force_break()
         interpolation_to_algebra(entries, :heredoc, state, initial, @double_heredoc)
@@ -258,33 +261,33 @@ defmodule CodeFormatter do
   # TODO: Remove Access in favor of our own special form.
   defp quoted_to_algebra({{:., _, [Access, :get]}, _, [target | args]}, _context, state) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {call_doc, state} = list_to_algebra(args, state)
+    {call_doc, state} = list_to_algebra([], args, state)
     {concat(target_doc, call_doc), state}
   end
 
   # %Foo{}
   # %name{foo: 1}
   # %name{bar | foo: 1}
-  defp quoted_to_algebra({:%, _, [name, {:%{}, _, args}]}, _context, state) do
+  defp quoted_to_algebra({:%, _, [name, {:%{}, meta, args}]}, _context, state) do
     {name_doc, state} = quoted_to_algebra(name, :argument, state)
-    map_to_algebra(name_doc, args, state)
+    map_to_algebra(meta, name_doc, args, state)
   end
 
   # %{foo: 1}
   # %{foo => bar}
   # %{name | foo => bar}
-  defp quoted_to_algebra({:%{}, _, args}, _context, state) do
-    map_to_algebra(empty(), args, state)
+  defp quoted_to_algebra({:%{}, meta, args}, _context, state) do
+    map_to_algebra(meta, empty(), args, state)
   end
 
   # {}
   # {1, 2}
-  defp quoted_to_algebra({:{}, _, args}, _context, state) do
-    tuple_to_algebra(args, state)
+  defp quoted_to_algebra({:{}, meta, args}, _context, state) do
+    tuple_to_algebra(meta, args, state)
   end
 
-  defp quoted_to_algebra({:__block__, _, [{left, right}]}, _context, state) do
-    tuple_to_algebra([left, right], state)
+  defp quoted_to_algebra({:__block__, meta, [{left, right}]}, _context, state) do
+    tuple_to_algebra(meta, [left, right], state)
   end
 
   defp quoted_to_algebra({:__block__, meta, [list]}, _context, state) when is_list(list) do
@@ -296,7 +299,7 @@ defmodule CodeFormatter do
         string = list |> List.to_string |> escape_string(@single_quote)
         {@single_quote |> concat(string) |> concat(@single_quote), state}
       _other ->
-        list_to_algebra(list, state)
+        list_to_algebra(meta, list, state)
     end
   end
 
@@ -558,14 +561,17 @@ defmodule CodeFormatter do
       cond do
         op in @no_space_binary_operators ->
           concat(concat(left, op_string), right)
+
         op in @no_newline_binary_operators ->
           op_string = " " <> op_string <> " "
           concat(concat(left, op_string), right)
+
         op in @left_new_line_before_binary_operators ->
           op_string = op_string <> " "
           doc = glue(left, concat(op_string, nest_by_length(right, op_string)))
           if op_info == parent_info, do: doc, else: group(doc)
-        op == :| and parent_info != nil ->
+
+        op in @right_new_line_before_binary_operators ->
           op_string = op_string <> " "
 
           # If the parent is of the same type (computed via same precedence),
@@ -586,7 +592,8 @@ defmodule CodeFormatter do
             end
 
           doc = glue(left, concat(op_string, right))
-          if op_info == parent_info, do: doc, else: group(doc)
+          if is_nil(parent_info) or op_info == parent_info, do: doc, else: group(doc)
+
         true ->
           with_next_break_fits(next_break_fits?(right_arg), right, fn right ->
             op_string = " " <> op_string
@@ -718,7 +725,7 @@ defmodule CodeFormatter do
   # expression.{arguments}
   defp remote_to_algebra({{:., _, [target, :{}]}, _, args}, _context, state) do
     {target_doc, state} = remote_target_to_algebra(target, state)
-    {call_doc, state} = tuple_to_algebra(args, state)
+    {call_doc, state} = tuple_to_algebra([], args, state)
     {concat(concat(target_doc, "."), call_doc), state}
   end
 
@@ -1013,23 +1020,23 @@ defmodule CodeFormatter do
 
   ## Bitstrings
 
-  defp bitstring_to_algebra(args, state) do
+  defp bitstring_to_algebra(meta, args, state) do
     last = length(args) - 1
     {args_doc, state} =
       args
       |> Enum.with_index()
-      |> args_to_algebra(state, &bitstring_to_algebra(&1, &2, last))
-    {surround("<<", args_doc, ">>"), state}
+      |> args_to_algebra(state, &bitstring_segment_to_algebra(&1, &2, last))
+    {container(meta, "<<", args_doc, ">>"), state}
   end
 
-  defp bitstring_to_algebra({{:::, _, [segment, spec]}, i}, state, last) do
+  defp bitstring_segment_to_algebra({{:::, _, [segment, spec]}, i}, state, last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
     {spec, state} = bitstring_spec_to_algebra(spec, state)
     doc = concat(concat(doc, "::"), wrap_in_parens_if_inspected_atom(spec))
     {bitstring_wrap_parens(doc, i, last), state}
   end
 
-  defp bitstring_to_algebra({segment, i}, state, last) do
+  defp bitstring_segment_to_algebra({segment, i}, state, last) do
     {doc, state} = quoted_to_algebra(segment, :argument, state)
     {bitstring_wrap_parens(doc, i, last), state}
   end
@@ -1061,32 +1068,32 @@ defmodule CodeFormatter do
 
   ## Literals
 
-  defp list_to_algebra([], state) do
+  defp list_to_algebra(_meta, [], state) do
     {"[]", state}
   end
 
-  defp list_to_algebra(args, state) do
+  defp list_to_algebra(meta, args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {surround("[", args_doc, "]"), state}
+    {container(meta, "[", args_doc, "]"), state}
   end
 
-  defp map_to_algebra(name_doc, [], state) do
+  defp map_to_algebra(_meta, name_doc, [], state) do
     {"%" |> concat(name_doc) |> concat("{}"), state}
   end
 
-  defp map_to_algebra(name_doc, args, state) do
+  defp map_to_algebra(meta, name_doc, args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
     name_doc = "%" |> concat(name_doc) |> concat("{")
-    {surround(name_doc, args_doc, "}"), state}
+    {container(meta, name_doc, args_doc, "}"), state}
   end
 
-  defp tuple_to_algebra([], state) do
+  defp tuple_to_algebra(_meta, [], state) do
     {"{}", state}
   end
 
-  defp tuple_to_algebra(args, state) do
+  defp tuple_to_algebra(meta, args, state) do
     {args_doc, state} = args_to_algebra(args, state, &quoted_to_algebra(&1, :argument, &2))
-    {surround("{", args_doc, "}"), state}
+    {container(meta, "{", args_doc, "}"), state}
   end
 
   defp atom_to_algebra(atom) when atom in [nil, true, false] do
@@ -1468,6 +1475,14 @@ defmodule CodeFormatter do
 
   defp keyword_key?(_) do
     false
+  end
+
+  defp container(meta, left, doc, right) do
+    if Keyword.get(meta, :eol, false) do
+      surround(left, force_break(doc), right)
+    else
+      surround(left, doc, right)
+    end
   end
 
   ## Algebra helpers
