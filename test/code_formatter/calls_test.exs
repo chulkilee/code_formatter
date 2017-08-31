@@ -250,6 +250,40 @@ defmodule CodeFormatter.CallsTest do
       """
       assert_format bad, good, @short_length
     end
+
+    test "with generators" do
+      assert_same "foo(bar <- baz, is_bat(bar))"
+      assert_same "for bar <- baz, is_bat(bar)"
+
+      assert_same """
+      foo(
+        bar <- baz,
+        is_bat(bar),
+        bat <- bar
+      )
+      """
+
+      assert_same """
+      for bar <- baz,
+          is_bat(bar),
+          bat <- bar
+      """
+
+      assert_same """
+      for bar <- baz,
+          is_bat(bar),
+          bat <- bar do
+        :ok
+      end
+      """
+
+      assert_same """
+      for bar <- baz,
+          is_bat(bar),
+          bat <- bar,
+          into: %{}
+      """
+    end
   end
 
   describe "remote calls" do

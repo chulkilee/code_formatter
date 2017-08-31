@@ -814,12 +814,15 @@ defmodule CodeFormatter do
 
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     context = if skip_parens?, do: :no_parens_argument, else: :argument
+
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
     {right_doc, state} = quoted_to_algebra(right, context, state)
+
+    multiple_generators? = multiple_generators?([right | left])
     no_parens_keyword? = left != [] and skip_parens? and keyword?(right)
 
     right_doc =
-      if no_parens_keyword? do
+      if no_parens_keyword? and not multiple_generators? do
         break("") |> concat(right_doc) |> nest(2) |> group()
       else
         right_doc
@@ -831,6 +834,8 @@ defmodule CodeFormatter do
           cond do
             left == [] ->
               right_doc
+            multiple_generators? ->
+              force_break(glue(concat(left_doc, ","), right_doc))
             no_parens_keyword? ->
               concat(concat(left_doc, ","), right_doc)
             true ->
@@ -854,6 +859,10 @@ defmodule CodeFormatter do
     length > 0 and Enum.any?(locals_without_parens, fn {key, val} ->
       key == fun and (val == :* or val == length)
     end)
+  end
+
+  defp multiple_generators?(args) do
+    Enum.count(args, &match?({:<-, _, [_, _]}, &1)) >= 2
   end
 
   defp do_end_blocks([{{:__block__, meta, [atom]}, value} | list], acc, available) do
@@ -1280,14 +1289,18 @@ defmodule CodeFormatter do
     concat(concat("(", nest(doc, :cursor)), ")")
   end
 
-  defp args_to_algebra([], state, _fun) do
+  defp args_to_algebra(args, state, fun) do
+    args_to_algebra(args, state, fun, &glue/2)
+  end
+
+  defp args_to_algebra([], state, _fun, _joiner) do
     {empty(), state}
   end
 
-  defp args_to_algebra([arg | args], state, fun) do
+  defp args_to_algebra([arg | args], state, fun, joiner) do
     Enum.reduce(args, fun.(arg, state), fn arg, {doc_acc, state_acc} ->
       {arg_doc, state_acc} = fun.(arg, state_acc)
-      {glue(concat(doc_acc, ","), arg_doc), state_acc}
+      {joiner.(concat(doc_acc, ","), arg_doc), state_acc}
     end)
   end
 
