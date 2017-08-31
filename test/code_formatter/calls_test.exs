@@ -140,9 +140,13 @@ defmodule CodeFormatter.CallsTest do
 
     test "with keyword lists" do
       assert_same """
-      foo(:hello, foo: foo, bar: '''
-      baz
-      ''')
+      foo(
+        :hello,
+        foo: foo,
+        bar: '''
+        baz
+        '''
+      )
       """
     end
   end
@@ -205,6 +209,12 @@ defmodule CodeFormatter.CallsTest do
             :ok
           end
       """, @short_length
+
+      assert_same """
+      for :one, fn ->
+        :ok
+      end
+      """, @medium_length
     end
 
     test "without parens on line limit" do
@@ -216,7 +226,7 @@ defmodule CodeFormatter.CallsTest do
       assert_format bad, good, @short_length
     end
 
-    test "without parens and with keyword expressions on line limit" do
+    test "without parens and with keyword lists on line limit" do
       assert_same "import :atom, opts: [foo: :bar]"
 
       bad = "import :atom, opts: [foo: :bar]"
@@ -240,6 +250,12 @@ defmodule CodeFormatter.CallsTest do
         one: two,
         three: four,
         five: [6, 7, 8, 9]
+      """, @medium_length
+
+      assert_same """
+      import :really_long_atom1,
+             one: two,
+             three: four
       """, @medium_length
 
       bad = "with :really_long_atom1, :really_long_atom2, opts: [foo: :bar]"

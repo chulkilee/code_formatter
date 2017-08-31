@@ -131,4 +131,18 @@ defmodule CodeFormatter.IntegrationTest do
     end
     """
   end
+
+  test "long defstruct definition" do
+    assert_same """
+    defstruct name: nil,
+              module: nil,
+              schema: nil,
+              alias: nil,
+              base_module: nil,
+              web_module: nil,
+              basename: nil,
+              file: nil,
+              test_file: nil
+    """
+  end
 end

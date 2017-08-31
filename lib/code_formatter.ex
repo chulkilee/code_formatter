@@ -588,7 +588,7 @@ defmodule CodeFormatter do
           doc = glue(left, concat(op_string, right))
           if op_info == parent_info, do: doc, else: group(doc)
         true ->
-          apply_next_break_fits(right_arg, right, fn right ->
+          with_next_break_fits(next_break_fits?(right_arg), right, fn right ->
             op_string = " " <> op_string
             concat(left, group(nest(glue(op_string, group(right)), nesting, :break)))
           end)
@@ -864,50 +864,54 @@ defmodule CodeFormatter do
 
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     context = if skip_parens?, do: :no_parens, else: :argument
+    multiple_generators? = multiple_generators?([right | left])
 
     {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
     {right_doc, state} = quoted_to_algebra(right, context, state)
 
-    multiple_generators? = multiple_generators?([right | left])
-    no_parens_keyword? = left != [] and skip_parens? and keyword?(right)
-
-    right_doc =
-      if no_parens_keyword? and not multiple_generators? do
-        break() |> concat(right_doc) |> group()
+    doc =
+      if left != [] and skip_parens? and not multiple_generators? and keyword?(right) do
+        call_args_to_algebra_with_no_parens_keywords(left_doc, right_doc)
       else
-        right_doc
+        with_next_break_fits(next_break_fits?(right), right_doc, fn right_doc ->
+          args_doc =
+            if left == [] do
+              right_doc
+            else
+              glue(concat(left_doc, ","), right_doc)
+            end
+
+          args_doc =
+            if multiple_generators? do
+              force_break(args_doc)
+            else
+              args_doc
+            end
+
+          if skip_parens? do
+            " "
+            |> concat(nest(args_doc, :cursor, :break))
+            |> group()
+          else
+            surround("(", args_doc, ")", :break)
+          end
+        end)
       end
 
-    doc =
-      apply_next_break_fits(right, right_doc, fn right_doc ->
-        args_doc =
-          cond do
-            left == [] ->
-              right_doc
-            multiple_generators? ->
-              force_break(glue(concat(left_doc, ","), right_doc))
-            no_parens_keyword? ->
-              concat(concat(left_doc, ","), right_doc)
-            true ->
-              glue(concat(left_doc, ","), right_doc)
-          end
-
-        cond do
-          no_parens_keyword? ->
-            " "
-            |> concat(nest(args_doc, :cursor, :break))
-            |> nest(2)
-            |> group()
-          skip_parens? ->
-            " "
-            |> concat(nest(args_doc, :cursor, :break))
-            |> group()
-          true ->
-            surround("(", args_doc, ")", :break)
-        end
-      end)
-
     {doc, state}
+  end
+
+  defp call_args_to_algebra_with_no_parens_keywords(left_doc, right_doc) do
+    right_doc = break(" ") |> concat(right_doc) |> group()
+
+    with_next_break_fits(true, right_doc, fn right_doc ->
+      args_doc = concat(concat(left_doc, ","), right_doc)
+
+      " "
+      |> concat(nest(args_doc, :cursor, :break))
+      |> nest(2)
+      |> group()
+    end)
   end
 
   defp skip_parens?(fun, args, %{locals_without_parens: locals_without_parens}) do
@@ -1394,8 +1398,8 @@ defmodule CodeFormatter do
     end
   end
 
-  defp apply_next_break_fits(arg, doc, fun) do
-    if apply_next_break_fits?(arg) do
+  defp with_next_break_fits(condition, doc, fun) do
+    if condition do
       doc
       |> next_break_fits(:enabled)
       |> fun.()
@@ -1405,45 +1409,45 @@ defmodule CodeFormatter do
     end
   end
 
-  defp apply_next_break_fits?({:<<>>, meta, [_ | _] = entries}) do
+  defp next_break_fits?({:<<>>, meta, [_ | _] = entries}) do
     meta[:format] == :bin_heredoc or not interpolated?(entries)
   end
 
-  defp apply_next_break_fits?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
+  defp next_break_fits?({{:., _, [String, :to_charlist]}, _, [{:<<>>, meta, [_ | _]}]}) do
     meta[:format] == :list_heredoc
   end
 
-  defp apply_next_break_fits?({:{}, _, _}) do
+  defp next_break_fits?({:{}, _, _}) do
     true
   end
 
-  defp apply_next_break_fits?({:__block__, _meta, [{_, _}]}) do
+  defp next_break_fits?({:__block__, _meta, [{_, _}]}) do
     true
   end
 
-  defp apply_next_break_fits?({:__block__, meta, [string]}) when is_binary(string) do
+  defp next_break_fits?({:__block__, meta, [string]}) when is_binary(string) do
     meta[:format] == :bin_heredoc
   end
 
-  defp apply_next_break_fits?({:__block__, meta, [list]}) when is_list(list) do
+  defp next_break_fits?({:__block__, meta, [list]}) when is_list(list) do
     meta[:format] != :charlist
   end
 
-  defp apply_next_break_fits?({form, _, [_ | _]}) when form in [:fn, :%{}, :%] do
+  defp next_break_fits?({form, _, [_ | _]}) when form in [:fn, :%{}, :%] do
     true
   end
 
-  defp apply_next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
+  defp next_break_fits?({fun, meta, args}) when is_atom(fun) and is_list(args) do
     meta[:terminator] in [@double_heredoc, @single_heredoc] and
       (fun |> Atom.to_string() |> String.starts_with?("sigil_"))
   end
 
-  defp apply_next_break_fits?({{:__block__, _, [atom]}, expr}) when is_atom(atom) do
-    apply_next_break_fits?(expr)
+  defp next_break_fits?({{:__block__, _, [atom]}, expr}) when is_atom(atom) do
+    next_break_fits?(expr)
   end
 
-  defp apply_next_break_fits?(other) do
-    keyword?(other)
+  defp next_break_fits?(_) do
+    false
   end
 
   defp keyword?([{key, _} | list]) do
