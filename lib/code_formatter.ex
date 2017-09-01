@@ -882,14 +882,23 @@ defmodule CodeFormatter do
   defp call_args_to_algebra_without_do_end_blocks(left, right, skip_parens?, state) do
     context = if skip_parens?, do: :no_parens, else: :argument
     multiple_generators? = multiple_generators?([right | left])
+    keyword? = keyword?(right)
 
-    {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
-    {right_doc, state} = quoted_to_algebra(right, context, state)
+    if left != [] and keyword? and skip_parens? and not multiple_generators? do
+      call_args_to_algebra_with_no_parens_keywords(left, right, context, state)
+    else
+      {left, right} =
+        if keyword? do
+          {keyword_left, keyword_right} = split_last(right)
+          {left ++ keyword_left, keyword_right}
+        else
+          {left, right}
+        end
 
-    doc =
-      if left != [] and skip_parens? and not multiple_generators? and keyword?(right) do
-        call_args_to_algebra_with_no_parens_keywords(left_doc, right_doc)
-      else
+      {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
+      {right_doc, state} = quoted_to_algebra(right, context, state)
+
+      doc =
         with_next_break_fits(next_break_fits?(right), right_doc, fn right_doc ->
           args_doc =
             if left == [] do
@@ -913,22 +922,27 @@ defmodule CodeFormatter do
             surround("(", args_doc, ")", :break)
           end
         end)
-      end
 
-    {doc, state}
+      {doc, state}
+    end
   end
 
-  defp call_args_to_algebra_with_no_parens_keywords(left_doc, right_doc) do
+  defp call_args_to_algebra_with_no_parens_keywords(left, right, context, state) do
+    {left_doc, state} = args_to_algebra(left, state, &quoted_to_algebra(&1, context, &2))
+    {right_doc, state} = quoted_to_algebra(right, context, state)
     right_doc = break(" ") |> concat(right_doc) |> group()
 
-    with_next_break_fits(true, right_doc, fn right_doc ->
-      args_doc = concat(concat(left_doc, ","), right_doc)
+    doc =
+      with_next_break_fits(true, right_doc, fn right_doc ->
+        args_doc = concat(concat(left_doc, ","), right_doc)
 
-      " "
-      |> concat(nest(args_doc, :cursor, :break))
-      |> nest(2)
-      |> group()
-    end)
+        " "
+        |> concat(nest(args_doc, :cursor, :break))
+        |> nest(2)
+        |> group()
+      end)
+
+    {doc, state}
   end
 
   defp skip_parens?(fun, args, %{locals_without_parens: locals_without_parens}) do

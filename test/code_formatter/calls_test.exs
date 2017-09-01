@@ -140,13 +140,16 @@ defmodule CodeFormatter.CallsTest do
 
     test "with keyword lists" do
       assert_same """
-      foo(
-        :hello,
-        foo: foo,
-        bar: '''
-        baz
-        '''
-      )
+      foo(:hello, foo: foo, bar: '''
+      baz
+      ''')
+      """
+
+      assert_same """
+      foo(do: fn
+        1 -> 2
+        3 -> 4
+      end)
       """
     end
   end
