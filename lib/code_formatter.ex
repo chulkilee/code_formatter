@@ -6,7 +6,6 @@ defmodule CodeFormatter do
   @double_heredoc "\"\"\""
   @single_quote "'"
   @single_heredoc "'''"
-  @do_end_keywords [:rescue, :catch, :else, :after]
   @newlines 2
 
   # Operators that do not have space between operands
