@@ -166,8 +166,8 @@ bar)
 
     test "with a single clause and when" do
       assert_same """
-      fn arg when
-           guard ->
+      fn arg
+         when guard ->
         :ok
       end
       """, @short_length
@@ -260,13 +260,13 @@ bar)
 
       good = """
       fn
-        a1, a2 when
-            a +
-              b ->
+        a1, a2
+        when a +
+               b ->
           :ok
-        b1, b2 when
-            c +
-              d ->
+        b1, b2
+        when c +
+               d ->
           :ok
       end
       """

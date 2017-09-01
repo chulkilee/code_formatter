@@ -19,7 +19,7 @@ defmodule CodeFormatter do
   @left_new_line_before_binary_operators [:|>, :~>>, :<<~, :~>, :<~, :<~>, :<|>]
 
   # Right associative operators that start on the next line in case of breaks
-  @right_new_line_before_binary_operators [:|]
+  @right_new_line_before_binary_operators [:|, :when]
 
   # Operators that are logical cannot be mixed without parens
   @required_parens_logical_binary_operands [:||, :|||, :or, :&&, :&&&, :and]

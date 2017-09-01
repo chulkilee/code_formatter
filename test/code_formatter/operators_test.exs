@@ -698,10 +698,11 @@ defmodule CodeFormatter.OperatorsTest do
     end
 
     test "with keywords on line breaks" do
-      bad = "foo when bar: :baz"
+      bad = "foo when one: :two, three: :four"
       good = """
-      foo when
-        bar: :baz
+      foo
+      when one: :two,
+           three: :four
       """
       assert_format bad, good, @short_length
     end
