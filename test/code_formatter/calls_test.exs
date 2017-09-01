@@ -549,21 +549,7 @@ defmodule CodeFormatter.CallsTest do
     end
 
     test "with multiple keywords" do
-      bad = """
-      foo do
-        :do
-      else
-        :else
-      rescue
-        :rescue
-      catch
-        :catch
-      after
-        :after
-      end
-      """
-
-      good = """
+      assert_same """
       foo do
         :do
       rescue
@@ -576,8 +562,6 @@ defmodule CodeFormatter.CallsTest do
         :after
       end
       """
-
-      assert_format bad, good
     end
 
     test "with multiple keywords and arrows" do

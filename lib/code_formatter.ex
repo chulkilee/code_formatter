@@ -122,14 +122,14 @@ defmodule CodeFormatter do
   @doc """
   Formats the given code `string`.
 
-  The formatter is opinionated by design and provides little to no
-  configuration. The formatter also never changes the semantics of
-  the code.
+  The formatter receives a string representing Elixir code and
+  returns iodata representing the formatted code according to
+  pre-defined rules.
 
   ## Options
 
     * `:line_length` - the line length to aim for when formatting
-      the document
+      the document. Defaults to 98.
 
     * `:locals_without_parens` - a keyword list of name and arity
       pairs that should be kept without parens whenever possible.
@@ -142,14 +142,35 @@ defmodule CodeFormatter do
       expects a valid `Version` which is usually the minimum Elixir
       version supported by the project.
 
+  ## Design principles
+
+  The formatter was designed under three principles.
+
+  First, the formatter never changes the semantics of the code by
+  default. This means the input AST and the output AST are equivalent.
+  Optional behaviour, such as `:rename_deprecated_at`, is allowed to
+  break this guarantee.
+
+  The second principle is to provide as little configuration as possible.
+  This reduces eases the formatter adoption while making sure a single
+  style is followed consistently by the community as a whole.
+
+  The formatter does not hard code names. The formatter will not behave
+  specially because a function is named `defmodule`, `def`, etc. This
+  principle mirrors Elixir's goal of being an extensible language where
+  developers can extend the language with new constructs as if they were
+  part of the language. When it is absolutely necessary to change behaviour
+  based on the name, this behaviour should be configurable, such as the
+  `:locals_without_parens` option.
+
   ## Keeping input formatting
 
   The formatter respects the input format in some cases. Those are
   listed below:
 
     * Insignificant digits in numbers are kept as is. The formatter
-      however inserts underscores for decimal numbers with more than
-      5 digits
+      however always inserts underscores for decimal numbers with more
+      than 5 digits and converts hexadecimal digits to uppercase
 
     * Strings, charlists, atoms and sigils are kept as is. No character
       is automatically escaped or unescaped. The choice of delimiter is
@@ -163,9 +184,9 @@ defmodule CodeFormatter do
     * The choice between `:do` keyword and `do/end` blocks is left
       to the user
 
-    * Lists, tuples, bitstrings, maps, and structs will be expanded if
-      they were also expanded in the input. For example with a newline
-      after `[` and another before `]` in lists
+    * Lists, tuples, bitstrings, maps, and structs will be broken into
+      multiple lines if they are followed by a newline in the input. For
+      example with a newline after `[` for lists
 
     * Pipeline operators, like `|>` and others with the same precedence,
       will span multiple lines if they spanned multiple lines in the input
@@ -968,15 +989,10 @@ defmodule CodeFormatter do
     nil
   end
 
-  defp do_end_blocks_to_algebra(blocks, state) do
-    {acc, state} = do_end_block_to_algebra(:do, Keyword.fetch!(blocks, :do), state)
+  defp do_end_blocks_to_algebra([{:do, value} | blocks], state) do
+    {acc, state} = do_end_block_to_algebra(:do, value, state)
 
-    ordered =
-      for key <- @do_end_keywords,
-          value <- Keyword.get_values(blocks, key),
-          do: {key, value}
-
-    Enum.reduce(ordered, {acc, state}, fn {key, value}, {acc, state} ->
+    Enum.reduce(blocks, {acc, state}, fn {key, value}, {acc, state} ->
       {doc, state} = do_end_block_to_algebra(key, value, state)
       {line(acc, doc), state}
     end)
