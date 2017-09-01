@@ -577,12 +577,8 @@ defmodule CodeFormatter do
         op in @left_new_line_before_binary_operators ->
           op_string = op_string <> " "
           doc = glue(left, concat(op_string, nest_by_length(right, op_string)))
-
-          cond do
-            op_info == parent_info -> doc
-            Keyword.get(meta, :eol, false) -> group(force_break(doc))
-            true -> group(doc)
-          end
+          doc = if Keyword.get(meta, :eol, false), do: force_break(doc), else: doc
+          if op_info == parent_info, do: doc, else: group(doc)
 
         op in @right_new_line_before_binary_operators ->
           op_string = op_string <> " "

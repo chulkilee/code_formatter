@@ -190,6 +190,13 @@ defmodule CodeFormatter.OperatorsTest do
       |> bar
       """
 
+      assert_same """
+      foo =
+        one
+        |> two()
+        |> three()
+      """
+
       bad = """
       foo |>
         bar
