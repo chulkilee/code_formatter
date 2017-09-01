@@ -388,6 +388,11 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "a |> b ++ c |> d", "a |> (b ++ c) |> d"
     end
 
+    test "with required parens skips on no parens" do
+      assert_same "1..2 ++ 3..4"
+      assert_same "1..2 |> 3..4"
+    end
+
     test "with logical operators" do
       assert_same "a or b or c"
       assert_format "a or b and c", "a or (b and c)"
