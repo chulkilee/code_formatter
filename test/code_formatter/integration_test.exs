@@ -34,21 +34,19 @@ defmodule CodeFormatter.IntegrationTest do
     """
   end
 
-  test "function with arrows over multiple lines" do
+  test "case with multiple multi-line arrows" do
     assert_same ~S"""
-    defp quoted_to_algebra({:__block__, meta, [list]}, _context, state) when is_list(list) do
-      case meta[:format] do
-        :list_heredoc ->
-          string = list |> List.to_string() |> escape_string(:heredoc)
-          {@single_heredoc |> line(string) |> concat(@single_heredoc) |> force_break(), state}
+    case meta[:format] do
+      :list_heredoc ->
+        string = list |> List.to_string() |> escape_string(:heredoc)
+        {@single_heredoc |> line(string) |> concat(@single_heredoc) |> force_break(), state}
 
-        :charlist ->
-          string = list |> List.to_string() |> escape_string(@single_quote)
-          {@single_quote |> concat(string) |> concat(@single_quote), state}
+      :charlist ->
+        string = list |> List.to_string() |> escape_string(@single_quote)
+        {@single_quote |> concat(string) |> concat(@single_quote), state}
 
-        _other ->
-          list_to_algebra(list, state)
-      end
+      _other ->
+        list_to_algebra(list, state)
     end
     """
   end

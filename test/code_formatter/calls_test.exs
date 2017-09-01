@@ -768,6 +768,30 @@ defmodule CodeFormatter.CallsTest do
       end
       """
     end
+
+   test "preserves user choice even when it fits" do
+      assert_same """
+      case do
+        1 ->
+          :ok
+        2 ->
+          :ok
+      end
+      """
+
+      assert_same """
+      case do
+        1 ->
+          :ok
+
+        2 ->
+          :ok
+
+        3 ->
+          :ok
+      end
+      """
+    end
   end
 
   describe "tuple calls" do

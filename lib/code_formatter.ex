@@ -970,7 +970,7 @@ defmodule CodeFormatter do
   defp do_end_block_to_algebra(key, value, state) do
     key_doc = Atom.to_string(key)
     {value_doc, state} = clauses_to_algebra(value, state)
-    {nest(line(key_doc, group(value_doc)), 2), state}
+    {key_doc |> line(value_doc) |> nest(2), state}
   end
 
   ## Interpolation
@@ -1239,7 +1239,6 @@ defmodule CodeFormatter do
   # end
   defp anon_fun_to_algebra(clauses, state) do
     {clauses_doc, state} = clauses_to_algebra(clauses, state)
-    clauses_doc = clauses_doc |> maybe_force_clauses(clauses) |> group()
     {"fn" |> line(clauses_doc) |> nest(2) |> line("end") |> force_break(), state}
   end
 
@@ -1288,7 +1287,6 @@ defmodule CodeFormatter do
   # )
   defp type_fun_to_algebra(clauses, state) do
     {clauses_doc, state} = clauses_to_algebra(clauses, state)
-    clauses_doc = clauses_doc |> maybe_force_clauses(clauses) |> group()
     {"(" |> line(clauses_doc) |> nest(2) |> line(")") |> force_break(), state}
   end
 
@@ -1308,15 +1306,19 @@ defmodule CodeFormatter do
     # If we have at least three clauses, then we apply extra empty lines.
     empty_lines? = match?([_, _ | _], clauses)
 
-    Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
-      {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
-      doc_acc = if empty_lines?, do: concat(doc_acc, maybe_empty_line()), else: doc_acc
-      {line(doc_acc, clause_doc), state_acc}
-    end)
+    {clauses_doc, state} =
+      Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
+        {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
+        doc_acc = if empty_lines?, do: concat(doc_acc, maybe_empty_line()), else: doc_acc
+        {line(doc_acc, clause_doc), state_acc}
+      end)
+
+    {clauses_doc |> maybe_force_clauses([clause | clauses]) |> group(), state}
   end
 
   defp clauses_to_algebra(other, state) do
-    block_to_algebra(other, state)
+    {doc, state} = block_to_algebra(other, state)
+    {group(doc), state}
   end
 
   defp clause_to_algebra({:"->", _, [[], body]}, state) do
