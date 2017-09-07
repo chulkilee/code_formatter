@@ -151,8 +151,9 @@ defmodule CodeFormatter do
   break this guarantee.
 
   The second principle is to provide as little configuration as possible.
-  This reduces eases the formatter adoption while making sure a single
-  style is followed consistently by the community as a whole.
+  This eases the formatter adoption by removing contention points while
+  making sure a single style is followed consistently by the community as
+  a whole.
 
   The formatter does not hard code names. The formatter will not behave
   specially because a function is named `defmodule`, `def`, etc. This
