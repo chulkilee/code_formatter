@@ -1081,10 +1081,10 @@ defmodule CodeFormatter do
     {bitstring_wrap_parens(doc, i, last), state}
   end
 
-  defp bitstring_spec_to_algebra({:-, _, [left, right]}, state) do
+  defp bitstring_spec_to_algebra({op, _, [left, right]}, state) when op in [:-, :*] do
     {left, state} = bitstring_spec_to_algebra(left, state)
     {right, state} = quoted_to_algebra_with_parens_if_necessary(right, :argument, state)
-    {concat(concat(left, "-"), right), state}
+    {concat(concat(left, Atom.to_string(op)), right), state}
   end
 
   defp bitstring_spec_to_algebra(spec, state) do
