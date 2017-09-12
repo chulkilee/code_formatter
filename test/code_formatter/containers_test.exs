@@ -56,6 +56,9 @@ defmodule CodeFormatter.ContainersTest do
         :bar
       }
       """
+
+      # Doesn't preserve this because only the beginning has a newline
+      assert_format "{\nfoo, bar, baz}", "{foo, bar, baz}"
     end
   end
 
@@ -161,6 +164,9 @@ defmodule CodeFormatter.ContainersTest do
         :bar
       ]
       """
+
+      # Doesn't preserve this because only the beginning has a newline
+      assert_format "[\nfoo, bar, baz]", "[foo, bar, baz]"
     end
   end
 
@@ -213,6 +219,9 @@ defmodule CodeFormatter.ContainersTest do
         :bar
       >>
       """
+
+      # Doesn't preserve this because only the beginning has a newline
+      assert_format "<<\nfoo, bar, baz>>", "<<foo, bar, baz>>"
     end
   end
 
@@ -295,6 +304,9 @@ defmodule CodeFormatter.ContainersTest do
         :bar => 3
       }
       """
+
+      # Doesn't preserve this because only the beginning has a newline
+      assert_format "%{\nfoo: 1, bar: 2}", "%{foo: 1, bar: 2}"
     end
   end
 
