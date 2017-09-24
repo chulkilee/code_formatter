@@ -217,10 +217,10 @@ defmodule CodeFormatter do
     tokenizer_options = [unescape: false, preserve_comments: true]
 
     with {:ok, tokens} <- :elixir.string_to_tokens(charlist, line, file, tokenizer_options),
-         {tokens, _comments} = collect_comments(tokens, [], []),
+         {tokens, comments} = collect_comments(tokens, [], []),
          {:ok, forms} <- :elixir.tokens_to_quoted(tokens, file, formatter_metadata: true) do
-      {doc, _state} = block_to_algebra(forms, state(opts))
-      {:ok, doc}
+      {doc, %{comments: comments}} = block_to_algebra(forms, state(comments, opts))
+      {:ok, apply_leftover_comments(doc, comments)}
     end
   end
 
@@ -240,7 +240,7 @@ defmodule CodeFormatter do
     end
   end
 
-  defp state(opts) do
+  defp state(comments, opts) do
     rename_deprecated_at =
       if version = opts[:rename_deprecated_at] do
         case Version.parse(version) do
@@ -256,15 +256,17 @@ defmodule CodeFormatter do
     %{
       locals_without_parens: locals_without_parens ++ @locals_without_parens,
       operand_nesting: 2,
-      rename_deprecated_at: rename_deprecated_at
+      rename_deprecated_at: rename_deprecated_at,
+      comments: comments
     }
   end
 
   # Code comment handling
 
-  defp collect_comments([{:comment, info, comment} | tokens], acc_tokens, acc_comments) do
+  defp collect_comments([{:comment, info, text} | tokens], acc_tokens, acc_comments) do
     {line, _column, _} = info
-    collect_comments(tokens, acc_tokens, [{line, newlines_from_eol(tokens), comment} | acc_comments])
+    comment = {line, newlines_from_eol(tokens), adjust_comment_text(text)}
+    collect_comments(tokens, acc_tokens, [comment | acc_comments])
   end
 
   defp collect_comments([other | tokens], acc_tokens, acc_comments) do
@@ -277,6 +279,20 @@ defmodule CodeFormatter do
 
   defp newlines_from_eol([{:eol, {_, _, count}} | _]), do: count
   defp newlines_from_eol(_), do: 1
+
+  defp adjust_comment_text('# ' ++ _ = text), do: List.to_string(text)
+  defp adjust_comment_text('#' ++ rest), do: List.to_string('# ' ++ rest)
+
+  defp apply_leftover_comments(doc, comments) do
+    if doc == empty() and comments != [] do
+      [{_, _, doc} | comments] = comments
+      apply_leftover_comments(doc, comments)
+    else
+      Enum.reduce(comments, doc, fn {_line, _newlines, comment}, acc ->
+        line(acc, comment)
+      end)
+    end
+  end
 
   # Special AST nodes from compiler feedback.
 
@@ -411,10 +427,6 @@ defmodule CodeFormatter do
     quoted_to_algebra(arg, context, state)
   end
 
-  defp quoted_to_algebra({:__block__, _, []}, _context, state) do
-    {"", state}
-  end
-
   defp quoted_to_algebra({:__block__, _, _} = block, _context, state) do
     {block, state} = block_to_algebra(block, state)
     {wrap_in_parens(block), state}
@@ -513,6 +525,10 @@ defmodule CodeFormatter do
          end)
 
     {args_doc |> Enum.reduce(&line(&2, &1)) |> force_break(), state}
+  end
+
+  defp block_to_algebra({:__block__, _, []}, state) do
+    {empty(), state}
   end
 
   defp block_to_algebra(block, state) do

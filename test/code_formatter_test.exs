@@ -698,4 +698,14 @@ bar)
       end
     end
   end
+
+  describe "comments" do
+    test "for empty documents" do
+      assert_same "# hello world"
+    end
+
+    test "are reformatted" do
+      assert_format "#oops", "# oops"
+    end
+  end
 end
