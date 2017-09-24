@@ -27,6 +27,7 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "!not 1", "!(not 1)"
       assert_format "not !1", "not(!1)"
       assert_format "not (!1)", "not(!1)"
+      assert_format "not (1 + 1)", "not(1 + 1)"
     end
 
     test "does not wrap operand if it is a nestable operator" do

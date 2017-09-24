@@ -76,12 +76,6 @@ defmodule CodeFormatter do
     end
   end
 
-  # TODO: We can remove this workaround once we remove
-  # ?rearrange_uop from the parser in Elixir v2.0.
-  defp not_equivalent({:__block__, _, left}, {:__block__, _, right}) do
-    not_equivalent(left, right)
-  end
-
   defp not_equivalent({:__block__, _, [left]}, right) do
     not_equivalent(left, right)
   end
@@ -126,6 +120,11 @@ defmodule CodeFormatter do
   pre-defined rules.
 
   ## Options
+
+    * `:file` - the file which contains the string, used for error
+      reporting
+
+    * `:line` - the line the string starts, used for error reporting
 
     * `:line_length` - the line length to aim for when formatting
       the document. Defaults to 98.
@@ -185,8 +184,9 @@ defmodule CodeFormatter do
       to the user
 
     * Lists, tuples, bitstrings, maps, and structs will be broken into
-      multiple lines if they are followed by a newline in the input. For
-      example with a newline after `[` for lists
+      multiple lines if they are followed by a newline in the opening
+      bracker and preceeded by a new lie in the closing bracker. For
+      example with a newline after `[` and before `]` for lists
 
     * Pipeline operators, like `|>` and others with the same precedence,
       will span multiple lines if they spanned multiple lines in the input
@@ -205,12 +205,39 @@ defmodule CodeFormatter do
 
   @doc """
   Converts `string` to an algebra document.
+
+  Returns `{:ok, doc}` or `{:error, parser_error}`.
+
+  See `format!/2` for the list of options.
   """
-  def to_algebra!(string, opts \\ []) when is_binary(string) and is_list(opts) do
-    string
-    |> Code.string_to_quoted!(formatter_metadata: true, unescape: false)
-    |> block_to_algebra(state(opts))
-    |> elem(0)
+  def to_algebra(string, opts \\ []) when is_binary(string) and is_list(opts) do
+    file = Keyword.get(opts, :file, "nofile")
+    line = Keyword.get(opts, :line, 1)
+    charlist = String.to_charlist(string)
+    tokenizer_options = [unescape: false, preserve_comments: true]
+
+    with {:ok, tokens} <- :elixir.string_to_tokens(charlist, line, file, tokenizer_options),
+         {tokens, _comments} = collect_comments(tokens, [], []),
+         {:ok, forms} <- :elixir.tokens_to_quoted(tokens, file, formatter_metadata: true) do
+      {doc, _state} = block_to_algebra(forms, state(opts))
+      {:ok, doc}
+    end
+  end
+
+  @doc """
+  Converts `string` to an algebra document.
+
+  Raises if the `string` cannot be parsed.
+
+  See `format!/2` for the list of options.
+  """
+  def to_algebra!(string, opts \\ []) do
+    case to_algebra(string, opts) do
+      {:ok, doc} ->
+        doc
+      {:error, {line, error, token}} ->
+        :elixir_errors.parse_error(line, Keyword.get(opts, :file, "nofile"), error, token)
+    end
   end
 
   defp state(opts) do
@@ -232,6 +259,24 @@ defmodule CodeFormatter do
       rename_deprecated_at: rename_deprecated_at
     }
   end
+
+  # Code comment handling
+
+  defp collect_comments([{:comment, info, comment} | tokens], acc_tokens, acc_comments) do
+    {line, _column, _} = info
+    collect_comments(tokens, acc_tokens, [{line, newlines_from_eol(tokens), comment} | acc_comments])
+  end
+
+  defp collect_comments([other | tokens], acc_tokens, acc_comments) do
+    collect_comments(tokens, [other | acc_tokens], acc_comments)
+  end
+
+  defp collect_comments([], acc_tokens, acc_comments) do
+    {Enum.reverse(acc_tokens), Enum.reverse(acc_comments)}
+  end
+
+  defp newlines_from_eol([{:eol, {_, _, count}} | _]), do: count
+  defp newlines_from_eol(_), do: 1
 
   # Special AST nodes from compiler feedback.
 
@@ -286,7 +331,6 @@ defmodule CodeFormatter do
   end
 
   # foo[bar]
-  # TODO: Remove Access in favor of our own special form.
   defp quoted_to_algebra({{:., _, [Access, :get]}, _, [target | args]}, _context, state) do
     {target_doc, state} = remote_target_to_algebra(target, state)
     {call_doc, state} = list_to_algebra([], args, state)
