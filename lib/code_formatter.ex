@@ -265,7 +265,19 @@ defmodule CodeFormatter do
 
   defp collect_comments([{:comment, info, text} | tokens], acc_tokens, acc_comments) do
     {line, _column, _} = info
-    comment = {line, newlines_from_eol(tokens), adjust_comment_text(text)}
+    next_eol = newlines_from_eol(tokens)
+    previous_eol = newlines_from_eol(acc_tokens)
+
+    # If there is a new line before and after,
+    # we need to remove one of them.
+    tokens =
+      if previous_eol && next_eol do
+        tl(tokens)
+      else
+        tokens
+      end
+
+    comment = {line, {previous_eol || @newlines, next_eol || @newlines}, adjust_comment_text(text)}
     collect_comments(tokens, acc_tokens, [comment | acc_comments])
   end
 
@@ -278,7 +290,7 @@ defmodule CodeFormatter do
   end
 
   defp newlines_from_eol([{:eol, {_, _, count}} | _]), do: count
-  defp newlines_from_eol(_), do: 1
+  defp newlines_from_eol(_), do: nil
 
   defp adjust_comment_text('# ' ++ _ = text), do: List.to_string(text)
   defp adjust_comment_text('#' ++ rest), do: List.to_string('# ' ++ rest)
@@ -288,8 +300,12 @@ defmodule CodeFormatter do
       [{_, _, doc} | comments] = comments
       apply_leftover_comments(doc, comments)
     else
-      Enum.reduce(comments, doc, fn {_line, _newlines, comment}, acc ->
-        line(acc, comment)
+      Enum.reduce(comments, doc, fn {_line, {previous_eol, _}, comment}, acc ->
+        if previous_eol >= @newlines do
+          line(acc, concat(line(), comment))
+        else
+          line(acc, comment)
+        end
       end)
     end
   end
@@ -511,30 +527,72 @@ defmodule CodeFormatter do
 
   ## Blocks
 
-  defp block_to_algebra({:__block__, _, [_, _ | _] = args}, state) do
-    length = length(args) - 1
-
-    {args_doc, state} =
-      args
-      |> group_blocks(:none, 0)
-      |> Enum.map_reduce(state, fn {left, quoted, right, i}, state ->
-           {doc, state} = quoted_to_algebra(quoted, :block, state)
-           doc = if i != 0, do: concat(left, doc), else: doc
-           doc = if i != length, do: concat(doc, concat(collapse_lines(2), right)), else: doc
-           {group(doc), state}
-         end)
-
-    {args_doc |> Enum.reduce(&line(&2, &1)) |> force_break(), state}
+  defp block_to_algebra([{:"->", _, _} | _] = type_fun, state) do
+    type_fun_to_algebra(type_fun, state)
   end
 
   defp block_to_algebra({:__block__, _, []}, state) do
     {empty(), state}
   end
 
-  defp block_to_algebra(block, state) do
-    {doc, state} = quoted_to_algebra(block, :block, state)
-    {group(doc), state}
+  defp block_to_algebra({:__block__, _, [_, _ | _] = args}, state) do
+    block_args_to_algebra(args, state)
   end
+
+  defp block_to_algebra(block, state) do
+    block_args_to_algebra([block], state)
+  end
+
+  defp block_args_to_algebra(args, state) do
+    {args_docs, state} = block_doc_with_comments(args, [], state)
+
+    doc =
+      args_docs
+      |> group_blocks(empty())
+      |> Enum.reduce(&line(&2, &1))
+
+    case args_docs do
+      [_] -> {doc, state}
+      _ -> {force_break(doc), state}
+    end
+  end
+
+  defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, state) when is_list(meta) do
+    doc_line = Keyword.get(meta, :line, 0)
+    {doc, %{comments: comments}} = quoted_to_algebra(arg, :block, state)
+
+    {doc_newlines, acc, comments} = extract_comments_before(doc_line, @newlines, acc, comments)
+    {doc, comments} = extract_comments_trailing(doc_line, doc, comments)
+
+    state = %{state | comments: comments}
+    doc_newlines = Keyword.get(meta, :newlines, doc_newlines)
+    block_doc_with_comments(args, [{doc, squeeze_if_possible?(kind), doc_newlines} | acc], state)
+  end
+
+  defp block_doc_with_comments([], acc, state) do
+    {Enum.reverse(acc), state}
+  end
+
+  defp extract_comments_before(doc_line, _, acc, [{line, _, _} = comment | comments])
+       when doc_line > line do
+    {_, {previous, next}, doc_comment} = comment
+    extract_comments_before(doc_line, next, [{doc_comment, false, previous} | acc], comments)
+  end
+
+  defp extract_comments_before(_doc_line, doc_newlines, acc, comments) do
+    {doc_newlines, acc, comments}
+  end
+
+  defp extract_comments_trailing(line, doc, [{line, _, doc_comment} | comments]) do
+    {space(doc, doc_comment), comments}
+  end
+
+  defp extract_comments_trailing(_line, doc, comments) do
+    {doc, comments}
+  end
+
+  defp squeeze_if_possible?(:@), do: true
+  defp squeeze_if_possible?(_), do: false
 
   # Below are the rules for block rendering in the formatter:
   #
@@ -543,37 +601,27 @@ defmodule CodeFormatter do
   #      (except for module attributes)
   #   3. empty lines are collapsed as to not exceed more than one
   #
-  defp group_blocks([{local, meta, _} = expr | exprs], _previous, index) when is_list(meta) do
-    left = group_line_separator(local, meta)
-    right = group_next_line_separator(exprs, local)
-    entry = {left, expr, right, index}
-
-    case group_blocks(exprs, :none, index + 1) do
-      [{_, next_expr, next_right, next_index} | rest] ->
-        [entry, {right, next_expr, next_right, next_index} | rest]
-      [] ->
-        [entry]
-    end
+  defp group_blocks([{doc, squeeze?, _newlines} | docs], left) do
+    right = group_next_line_separator(docs, squeeze?)
+    doc = concat(left, doc)
+    doc = if docs != [], do: concat(doc, concat(collapse_lines(2), right)), else: doc
+    [group(doc) | group_blocks(docs, right)]
   end
 
-  defp group_blocks([], _, _) do
+  defp group_blocks([], _) do
     []
   end
 
-  defp group_next_line_separator([{_, meta, _} | _], local) when is_list(meta) do
-    group_line_separator(local, meta)
+  defp group_next_line_separator([{_doc, _squeeze?, newlines} | _], squeeze?) do
+    cond do
+      newlines >= @newlines -> line()
+      squeeze? -> empty()
+      true -> break("")
+    end
   end
 
   defp group_next_line_separator([], _) do
     line()
-  end
-
-  defp group_line_separator(:@, meta) do
-    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: line(), else: empty()
-  end
-
-  defp group_line_separator(_, meta) do
-    if Keyword.get(meta, :newlines, @newlines) >= @newlines, do: line(), else: break("")
   end
 
   ## Operators

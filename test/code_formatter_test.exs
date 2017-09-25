@@ -716,5 +716,44 @@ bar)
     test "are reformatted" do
       assert_format "#oops", "# oops"
     end
+
+    test "before and after expressions" do
+      assert_same """
+      # before comment
+      :hello
+      """
+
+      assert_same """
+      :hello
+      # after comment
+      """
+
+      assert_same """
+      # before comment
+      :hello
+      # after comment
+      """
+    end
+
+    test "on expressions" do
+      assert_same """
+      :hello # this is hello
+      :world # this is world
+      """
+    end
+
+    test "before, on and after expressions with newlines" do
+      assert_same """
+      # before comment
+
+      :hello # this is hello
+
+      # middle comment
+
+      :world # this is world
+
+      # after comment
+      """
+    end
   end
 end
