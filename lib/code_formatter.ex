@@ -265,19 +265,19 @@ defmodule CodeFormatter do
 
   defp collect_comments([{:comment, info, text} | tokens], acc_tokens, acc_comments) do
     {line, _column, _} = info
-    next_eol = newlines_from_eol(tokens)
     previous_eol = newlines_from_eol(acc_tokens)
 
-    # If there is a new line before and after,
-    # we need to remove one of them.
-    tokens =
-      if previous_eol && next_eol do
-        tl(tokens)
+    # If there is a new line before, we can gather all followup comments.
+    # We also need to make sure to remove any new line that comes after.
+    {next_eol, tokens, texts} =
+      if previous_eol do
+        collect_followup_comments(tokens, [text])
       else
-        tokens
+        {newlines_from_eol(tokens), tokens, [text]}
       end
 
-    comment = {line, {previous_eol || @newlines, next_eol || @newlines}, adjust_comment_text(text)}
+    doc = texts |> Enum.map(&adjust_comment_text/1) |> Enum.reduce(&line/2)
+    comment = {line, {previous_eol || @newlines, next_eol || @newlines}, doc}
     collect_comments(tokens, acc_tokens, [comment | acc_comments])
   end
 
@@ -289,7 +289,18 @@ defmodule CodeFormatter do
     {Enum.reverse(acc_tokens), Enum.reverse(acc_comments)}
   end
 
+  defp collect_followup_comments([{:eol, {_, _, 1}}, {:comment, _, text} | rest], acc) do
+    collect_followup_comments(rest, [text | acc])
+  end
+  defp collect_followup_comments([{:eol, {_, _, count}} | rest], acc) do
+    {count, rest, acc}
+  end
+  defp collect_followup_comments([], acc) do
+    {1, [], acc}
+  end
+
   defp newlines_from_eol([{:eol, {_, _, count}} | _]), do: count
+  defp newlines_from_eol([]), do: 1
   defp newlines_from_eol(_), do: nil
 
   defp adjust_comment_text('# ' ++ _ = text), do: List.to_string(text)
