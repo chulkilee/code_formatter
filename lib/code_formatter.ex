@@ -1394,14 +1394,14 @@ defmodule CodeFormatter do
   defp clauses_to_algebra([{:"->", _, _} = clause | clauses], state) do
     {clause_doc, state} = clause_to_algebra(clause, state)
 
-    # If we have at least three clauses, then we apply extra empty lines.
-    empty_lines? = match?([_, _ | _], clauses)
-
     {clauses_doc, state} =
       Enum.reduce(clauses, {clause_doc, state}, fn clause, {doc_acc, state_acc} ->
         {clause_doc, state_acc} = clause_to_algebra(clause, state_acc)
-        doc_acc = if empty_lines?, do: concat(doc_acc, maybe_empty_line()), else: doc_acc
-        {line(doc_acc, clause_doc), state_acc}
+        doc_acc =
+          doc_acc
+          |> concat(maybe_empty_line())
+          |> line(clause_doc)
+        {doc_acc, state_acc}
       end)
 
     {clauses_doc |> maybe_force_clauses([clause | clauses]) |> group(), state}

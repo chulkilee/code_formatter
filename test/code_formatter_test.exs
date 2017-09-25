@@ -185,6 +185,7 @@ bar)
       fn
         1 ->
           :ok
+
         2 ->
           :error
       end
@@ -195,6 +196,7 @@ bar)
         arg11,
         arg12 ->
           body1
+
         arg21,
         arg22 ->
           body2
@@ -225,6 +227,7 @@ bar)
           '''
           foo
           '''
+
         arg2 ->
           '''
           bar
@@ -264,6 +267,7 @@ bar)
         when a +
                b ->
           :ok
+
         b1, b2
         when c +
                d ->
@@ -282,6 +286,7 @@ bar)
       fn
         1 ->
           :ok
+
         2 ->
           :ok
       end
@@ -341,6 +346,7 @@ bar)
       (
         1 ->
           :ok
+
         2 ->
           :error
       )
@@ -351,6 +357,7 @@ bar)
         arg11,
         arg12 ->
           body1
+
         arg21,
         arg22 ->
           body2
@@ -381,6 +388,7 @@ bar)
           '''
           foo
           '''
+
         arg2 ->
           '''
           bar
@@ -403,6 +411,7 @@ bar)
       (
         1 ->
           :ok
+
         2 ->
           :ok
       )

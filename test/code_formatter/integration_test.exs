@@ -122,6 +122,7 @@ defmodule CodeFormatter.IntegrationTest do
       resolve_type(fn
         %{__struct__: str}, _ ->
           str |> Model.Node.model_to_node_type()
+
         value, _ ->
           Logger.warn("Could not extract node type from value: #{inspect(value)}")
           nil
