@@ -447,7 +447,7 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, _, [_] = args}]},
                          context, state) do
     {doc, state} = local_to_algebra(:unquote_splicing, args, context, state)
-    {concat(concat("(", nest(doc, 1)), ")"), state}
+    {wrap_in_parens(doc), state}
   end
 
   defp quoted_to_algebra({:__block__, _meta, [arg]}, context, state) do
@@ -760,7 +760,7 @@ defmodule CodeFormatter do
   defp binary_operand_to_algebra({:__block__, _, [{op, meta, [arg]}]}, context, state, :in,
                                  _parent_info, :left, _nesting) when op in [:not, :!] do
     {doc, state} = unary_op_to_algebra(op, meta, arg, context, state)
-    {concat(concat("(", nest(doc, 1)), ")"), state}
+    {wrap_in_parens(doc), state}
   end
 
   defp binary_operand_to_algebra(operand, context, state, parent_op, parent_info, side, nesting) do
@@ -787,7 +787,7 @@ defmodule CodeFormatter do
           {operand, state} =
             binary_op_to_algebra(op, op_string, meta, left, right, context, state, op_info, 2)
 
-          {concat(concat("(", nest(operand, 1)), ")"), state}
+          {wrap_in_parens(operand), state}
 
         # Otherwise, we rely on precedence but also nest.
         true ->
@@ -1237,7 +1237,7 @@ defmodule CodeFormatter do
 
       if i == 0 and String.starts_with?(string, "<<") or
            i == last and String.ends_with?(string, ">>") do
-        concat(concat("(", doc), ")")
+        wrap_in_parens(doc)
       else
         doc
       end
