@@ -796,7 +796,14 @@ defmodule CodeFormatter do
     else
       {:&, _, [arg]} when not is_integer(arg) ->
         {doc, state} = quoted_to_algebra(operand, context, state)
-        {wrap_in_parens(doc), state}
+        {_, prec} = Code.Identifier.unary_op(:&)
+        {_, parent_prec} = parent_info
+
+        if parent_prec < prec do
+          {doc, state}
+        else
+          {wrap_in_parens(doc), state}
+        end
       _ ->
         quoted_to_algebra(operand, context, state)
     end
@@ -865,8 +872,22 @@ defmodule CodeFormatter do
     {{string("#{name}/#{arity}"), state}, false}
   end
 
+  defp capture_target_to_algebra({op, _, [_, _]} = arg, context, state) when is_atom(op) do
+    {doc, state} = quoted_to_algebra(arg, context, state)
+
+    {_, prec} = Code.Identifier.unary_op(:&)
+    case Code.Identifier.binary_op(op) do
+      {_, op_prec} when op_prec < prec ->
+        {{wrap_in_parens(doc), state}, false}
+      {_, _} ->
+        {{doc, state}, true}
+      _ ->
+        {{doc, state}, false}
+    end
+  end
+
   defp capture_target_to_algebra(arg, context, state) do
-    {quoted_to_algebra(arg, context, state), binary_operator?(arg)}
+    {quoted_to_algebra(arg, context, state), false}
   end
 
 

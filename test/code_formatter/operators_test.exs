@@ -641,10 +641,12 @@ defmodule CodeFormatter.OperatorsTest do
       assert_format "&(+1)", "&+1"
       assert_format "&(a ++ b)", "& a ++ b"
       assert_format "&(&1 && &2)", "& &1 && &2"
+      assert_same "&(&1 | &2)"
     end
 
     test "with operators outside" do
       assert_same "(& &1) == (& &2)"
+      assert_same "[&IO.puts/1 | &IO.puts/2]"
     end
 
     test "with call expressions" do
