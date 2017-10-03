@@ -37,6 +37,13 @@ defmodule CodeFormatter.CommentsTest do
       """
     end
 
+    test "empty comment" do
+      assert_same """
+      #
+      :foo #
+      """
+    end
+
     test "before, on and after expressions with newlines" do
       assert_same """
       # before comment
@@ -45,6 +52,8 @@ defmodule CodeFormatter.CommentsTest do
       :hello # this is hello
 
       # middle comment 1
+
+      #
 
       # middle comment 2
 

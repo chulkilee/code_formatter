@@ -303,6 +303,7 @@ defmodule CodeFormatter do
   defp newlines_from_eol([]), do: 1
   defp newlines_from_eol(_), do: nil
 
+  defp adjust_comment_text('#'), do: "#"
   defp adjust_comment_text('# ' ++ _ = text), do: List.to_string(text)
   defp adjust_comment_text('#' ++ rest), do: List.to_string('# ' ++ rest)
 
