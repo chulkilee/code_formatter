@@ -63,5 +63,51 @@ defmodule CodeFormatter.CommentsTest do
       # second line
       """
     end
+
+    test "before, during and after interpolation" do
+      assert_same ~S"""
+      # comment
+      IO.puts("Hello #{world}")
+      """
+
+      # TODO: Support this by storing a minimum line
+      # assert_same ~S"""
+      # IO.puts("Hello #{world}") # comment
+      # """
+
+      assert_same ~S"""
+      IO.puts("Hello #{world}")
+      # comment
+      """
+    end
+
+    test "before and during inside interpolation" do
+      assert_same ~S"""
+      IO.puts(
+        "Hello #{
+          # comment
+          world
+        }"
+      )
+      """
+
+      assert_same ~S"""
+      IO.puts(
+        "Hello #{
+          world # comment
+        }"
+      )
+      """
+
+      # TODO: Support this one by annotating when the interpolation finishes.
+      # assert_same ~S"""
+      # IO.puts(
+      #   "Hello #{
+      #     world
+      #     # comment
+      #   }"
+      # )
+      # """
+    end
   end
 end

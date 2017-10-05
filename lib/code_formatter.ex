@@ -565,18 +565,23 @@ defmodule CodeFormatter do
   end
 
   defp block_args_to_algebra(args, state) do
-    {args_docs, state} = block_doc_with_comments(args, [], state)
+    {args_docs, new_state} = block_doc_with_comments(args, [], state)
 
     doc =
       args_docs
       |> group_blocks(empty())
       |> Enum.reduce(&line(&2, &1))
 
-    case args_docs do
-      [_] -> {doc, state}
-      _ -> {force_break(doc), state}
+    if force_break_on_block?(args_docs, state, new_state) do
+      {force_break(doc), new_state}
+    else
+      {doc, new_state}
     end
   end
+
+  defp force_break_on_block?([_], %{comments: [x | _]}, %{comments: [x | _]}), do: false
+  defp force_break_on_block?([_], %{comments: []}, %{comments: []}), do: false
+  defp force_break_on_block?(_, _, _), do: true
 
   defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, state) when is_list(meta) do
     doc_line = Keyword.get(meta, :line, 0)
