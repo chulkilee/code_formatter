@@ -108,15 +108,14 @@ defmodule CodeFormatter.CommentsTest do
       )
       """
 
-      # TODO: Support this one by annotating when the interpolation finishes.
-      # assert_same ~S"""
-      # IO.puts(
-      #   "Hello #{
-      #     world
-      #     # comment
-      #   }"
-      # )
-      # """
+      assert_same ~S"""
+      IO.puts(
+        "Hello #{
+          world
+          # comment
+        }"
+      )
+      """
     end
   end
 end
