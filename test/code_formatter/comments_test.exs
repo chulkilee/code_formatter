@@ -70,14 +70,23 @@ defmodule CodeFormatter.CommentsTest do
       IO.puts("Hello #{world}")
       """
 
-      # TODO: Support this by storing a minimum line
-      # assert_same ~S"""
-      # IO.puts("Hello #{world}") # comment
-      # """
+      assert_same ~S"""
+      IO.puts("Hello #{world}") # comment
+      """
 
       assert_same ~S"""
       IO.puts("Hello #{world}")
       # comment
+      """
+
+      # This is ambiguous so we move the comment out
+      ambiguous = ~S"""
+      IO.puts("Hello #{world # comment
+      }")
+      """
+
+      assert_format ambiguous, ~S"""
+      IO.puts("Hello #{world}") # comment
       """
     end
 

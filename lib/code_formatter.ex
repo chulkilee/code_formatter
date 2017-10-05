@@ -7,6 +7,7 @@ defmodule CodeFormatter do
   @single_quote "'"
   @single_heredoc "'''"
   @newlines 2
+  @maximum_line 9999999
 
   # Operators that do not have space between operands
   @no_space_binary_operators [:..]
@@ -266,7 +267,8 @@ defmodule CodeFormatter do
       locals_without_parens: locals_without_parens ++ @locals_without_parens,
       operand_nesting: 2,
       rename_deprecated_at: rename_deprecated_at,
-      comments: comments
+      comments: comments,
+      min_block_comment_line: 0
     }
   end
 
@@ -584,14 +586,15 @@ defmodule CodeFormatter do
   defp force_break_on_block?(_, _, _), do: true
 
   defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, state) when is_list(meta) do
-    doc_line = Keyword.get(meta, :line, 0)
-    %{comments: comments} = state
+    %{comments: comments, min_block_comment_line: min_line} = state
+    doc_line = Keyword.get(meta, :line, @maximum_line)
     {doc_newlines, acc, comments} = extract_comments_before(doc_line, @newlines, acc, comments)
 
-    {doc, %{comments: comments}} = quoted_to_algebra(arg, :block, %{state | comments: comments})
-    {doc, comments} = extract_comments_trailing(doc_line, doc, comments)
+    state = %{state | comments: comments, min_block_comment_line: doc_line}
+    {doc, state} = quoted_to_algebra(arg, :block, state)
+    {doc, comments} = extract_comments_trailing(doc_line, min_line, doc, state.comments)
 
-    state = %{state | comments: comments}
+    state = %{state | comments: comments, min_block_comment_line: min_line}
     doc_newlines = Keyword.get(meta, :newlines, doc_newlines)
     block_doc_with_comments(args, [{doc, squeeze_if_possible?(kind), doc_newlines} | acc], state)
   end
@@ -610,11 +613,12 @@ defmodule CodeFormatter do
     {doc_newlines, acc, comments}
   end
 
-  defp extract_comments_trailing(line, doc, [{line, _, doc_comment} | comments]) do
+  defp extract_comments_trailing(line, min_line, doc, [{line, _, doc_comment} | comments])
+       when line > min_line do
     {space(doc, doc_comment), comments}
   end
 
-  defp extract_comments_trailing(_line, doc, comments) do
+  defp extract_comments_trailing(_line, _min_line, doc, comments) do
     {doc, comments}
   end
 
