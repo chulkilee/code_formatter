@@ -214,14 +214,23 @@ defmodule CodeFormatter do
     file = Keyword.get(opts, :file, "nofile")
     line = Keyword.get(opts, :line, 1)
     charlist = String.to_charlist(string)
-    tokenizer_options = [unescape: false, preserve_comments: true]
+
+    Process.put(:code_formatter_comments, [])
+    tokenizer_options = [unescape: false, preserve_comments: &preserve_comments/5]
 
     with {:ok, tokens} <- :elixir.string_to_tokens(charlist, line, file, tokenizer_options),
-         {tokens, comments} = collect_comments(tokens, [], []),
          {:ok, forms} <- :elixir.tokens_to_quoted(tokens, file, formatter_metadata: true) do
-      {doc, %{comments: comments}} = block_to_algebra(forms, state(comments, opts))
+      state =
+        Process.get(:code_formatter_comments)
+        |> Enum.reverse()
+        |> gather_comments()
+        |> state(opts)
+
+      {doc, %{comments: comments}} = block_to_algebra(forms, state)
       {:ok, apply_leftover_comments(doc, comments)}
     end
+  after
+    Process.delete(:code_formatter_comments)
   end
 
   @doc """
@@ -263,49 +272,49 @@ defmodule CodeFormatter do
 
   # Code comment handling
 
-  defp collect_comments([{:comment, info, text} | tokens], acc_tokens, acc_comments) do
-    {line, _column, _} = info
-    previous_eol = newlines_from_eol(acc_tokens)
-
-    # If there is a new line before, we can gather all followup comments.
-    # We also need to make sure to remove any new line that comes after.
-    {next_eol, tokens, texts} =
-      if previous_eol do
-        collect_followup_comments(tokens, [text])
-      else
-        {newlines_from_eol(tokens), tokens, [text]}
-      end
-
-    doc = texts |> Enum.map(&adjust_comment_text/1) |> Enum.reduce(&line/2)
-    comment = {line, {previous_eol || @newlines, next_eol || @newlines}, doc}
-    collect_comments(tokens, acc_tokens, [comment | acc_comments])
+  defp preserve_comments(line, _column, tokens, comment, rest) do
+    comments = Process.get(:code_formatter_comments)
+    comment = {line, {previous_eol(tokens), next_eol(rest, 0)}, format_comment(comment)}
+    Process.put(:code_formatter_comments, [comment | comments])
   end
 
-  defp collect_comments([other | tokens], acc_tokens, acc_comments) do
-    collect_comments(tokens, [other | acc_tokens], acc_comments)
+  defp next_eol('\s' ++ rest, count), do: next_eol(rest, count)
+  defp next_eol('\t' ++ rest, count), do: next_eol(rest, count)
+  defp next_eol('\n' ++ rest, count), do: next_eol(rest, count + 1)
+  defp next_eol('\r\n' ++ rest, count), do: next_eol(rest, count + 1)
+  defp next_eol(_, count), do: count
+
+  defp previous_eol([{:eol, {_, _, count}} | _]), do: count
+  defp previous_eol([]), do: 1
+  defp previous_eol(_), do: nil
+
+  defp format_comment('#'), do: "#"
+  defp format_comment('# ' ++ _ = text), do: List.to_string(text)
+  defp format_comment('#' ++ rest), do: List.to_string('# ' ++ rest)
+
+  # If there is a no new line before, we can't gather all followup comments.
+  defp gather_comments([{line, {nil, next_eol}, doc} | comments]) do
+    comment = {line, {@newlines, next_eol}, doc}
+    [comment | gather_comments(comments)]
   end
 
-  defp collect_comments([], acc_tokens, acc_comments) do
-    {Enum.reverse(acc_tokens), Enum.reverse(acc_comments)}
+  defp gather_comments([{line, {previous_eol, next_eol}, doc} | comments]) do
+    {next_eol, comments, doc} = gather_followup_comments(line + 1, next_eol, comments, doc)
+    comment = {line, {previous_eol, next_eol}, doc}
+    [comment | gather_comments(comments)]
   end
 
-  defp collect_followup_comments([{:eol, {_, _, 1}}, {:comment, _, text} | rest], acc) do
-    collect_followup_comments(rest, [text | acc])
-  end
-  defp collect_followup_comments([{:eol, {_, _, count}} | rest], acc) do
-    {count, rest, acc}
-  end
-  defp collect_followup_comments([], acc) do
-    {1, [], acc}
+  defp gather_comments([]) do
+    []
   end
 
-  defp newlines_from_eol([{:eol, {_, _, count}} | _]), do: count
-  defp newlines_from_eol([]), do: 1
-  defp newlines_from_eol(_), do: nil
-
-  defp adjust_comment_text('#'), do: "#"
-  defp adjust_comment_text('# ' ++ _ = text), do: List.to_string(text)
-  defp adjust_comment_text('#' ++ rest), do: List.to_string('# ' ++ rest)
+  defp gather_followup_comments(line, _, [{line, {previous_eol, next_eol}, text} | comments], doc)
+       when previous_eol != nil do
+    gather_followup_comments(line + 1, next_eol, comments, line(doc, text))
+  end
+  defp gather_followup_comments(_line, next_eol, comments, doc) do
+    {next_eol, comments, doc}
+  end
 
   defp apply_leftover_comments(doc, comments) do
     if doc == empty() and comments != [] do
@@ -571,9 +580,10 @@ defmodule CodeFormatter do
 
   defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, state) when is_list(meta) do
     doc_line = Keyword.get(meta, :line, 0)
-    {doc, %{comments: comments}} = quoted_to_algebra(arg, :block, state)
-
+    %{comments: comments} = state
     {doc_newlines, acc, comments} = extract_comments_before(doc_line, @newlines, acc, comments)
+
+    {doc, %{comments: comments}} = quoted_to_algebra(arg, :block, %{state | comments: comments})
     {doc, comments} = extract_comments_trailing(doc_line, doc, comments)
 
     state = %{state | comments: comments}
