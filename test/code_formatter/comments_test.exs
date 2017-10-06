@@ -63,8 +63,10 @@ defmodule CodeFormatter.CommentsTest do
       # second line
       """
     end
+  end
 
-    test "before, during and after interpolation" do
+  describe "interpolation" do
+    test "with comment outside before, during and after" do
       assert_same ~S"""
       # comment
       IO.puts("Hello #{world}")
@@ -90,7 +92,7 @@ defmodule CodeFormatter.CommentsTest do
       """
     end
 
-    test "before and during inside interpolation" do
+    test "with comment inside before, during and after" do
       assert_same ~S"""
       IO.puts(
         "Hello #{
@@ -116,6 +118,70 @@ defmodule CodeFormatter.CommentsTest do
         }"
       )
       """
+    end
+  end
+
+  describe "parens blocks" do
+    test "with comment outside before, during and after" do
+      assert_same ~S"""
+      # comment
+      assert (
+               hello
+               world
+             )
+      """
+
+      assert_same ~S"""
+      assert (
+               hello
+               world
+             )
+
+      # comment
+      """
+
+      # This is ambiguous so we move the comment out
+      ambiguous = ~S"""
+      assert (
+               hello
+               world
+             ) # comment
+      """
+
+      assert_format ambiguous, ~S"""
+      assert (
+               hello
+               world
+             )
+
+      # comment
+      """
+    end
+
+    test "with comment inside before, during and after" do
+      assert_same ~S"""
+      assert (
+               # comment
+               hello
+               world
+             )
+      """
+
+      assert_same ~S"""
+      assert (
+               hello # comment1
+               world # comment2
+             )
+      """
+
+      # TODO: Support end_line in parens
+      # assert_same ~S"""
+      # assert (
+      #          hello
+      #          world
+      #          # comment
+      #        )
+      # """
     end
   end
 end

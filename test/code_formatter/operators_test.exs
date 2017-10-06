@@ -35,7 +35,24 @@ defmodule CodeFormatter.OperatorsTest do
       assert_same "not not var"
     end
 
-    test "does not nests operand" do
+    test "nests operand" do
+      bad = "+foo(bar, baz, bat)"
+      good = """
+      +foo(
+        bar,
+        baz,
+        bat
+      )
+      """
+      assert_format bad, good, @short_length
+
+      assert_same """
+      +assert foo,
+              bar
+      """, @short_length
+    end
+
+    test "does not nest operand" do
       bad = "not foo(bar, baz, bat)"
       good = """
       not foo(
@@ -55,6 +72,11 @@ defmodule CodeFormatter.OperatorsTest do
       )
       """
       assert_format bad, good, @short_length
+
+      assert_same """
+      not assert foo,
+                 bar
+      """, @short_length
     end
 
     test "inside do-end block" do
@@ -656,10 +678,19 @@ defmodule CodeFormatter.OperatorsTest do
     test "with blocks" do
       bad = "&(1; 2)"
       good = """
-      &(1
-        2)
+      &(
+        1
+        2
+      )
       """
       assert_format bad, good
+    end
+
+    test "with no parens" do
+      assert_same """
+      &assert foo,
+              bar
+      """, @short_length
     end
 
     test "precedence when combined with calls" do

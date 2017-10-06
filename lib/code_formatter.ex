@@ -445,7 +445,7 @@ defmodule CodeFormatter do
   defp quoted_to_algebra({:__block__, _meta, [{:unquote_splicing, _, [_] = args}]},
                          context, state) do
     {doc, state} = local_to_algebra(:unquote_splicing, args, context, state)
-    {wrap_in_parens(doc), state}
+    {surround("(", doc, ")"), state}
   end
 
   defp quoted_to_algebra({:__block__, _meta, [arg]}, context, state) do
@@ -454,7 +454,7 @@ defmodule CodeFormatter do
 
   defp quoted_to_algebra({:__block__, meta, _} = block, _context, state) do
     {block, state} = block_to_algebra(block, end_line(meta), state)
-    {wrap_in_parens(block), state}
+    {surround("(", block, ")"), state}
   end
 
   defp quoted_to_algebra({:__aliases__, _meta, [head | tail]}, context, state) do
@@ -579,7 +579,9 @@ defmodule CodeFormatter do
        when is_list(meta) do
     %{comments: comments, min_block_comment_line: min_line} = state
     doc_line = Keyword.get(meta, :line, @maximum_line)
-    {doc_newlines, acc, comments} = extract_comments_before(doc_line, @newlines, acc, comments)
+
+    {doc_newlines, acc, comments} =
+      extract_comments_before(doc_line, min_line, @newlines, acc, comments)
 
     state = %{state | comments: comments, min_block_comment_line: doc_line}
     {doc, state} = quoted_to_algebra(arg, :block, state)
@@ -597,17 +599,18 @@ defmodule CodeFormatter do
     {current, comments} =
       Enum.split_with(comments, fn {line, _, _} -> line > min_line and line < max_line end)
 
-    extra = for {_, {previous, _}, doc} <- current, do: {doc, break(""), previous}
+    extra = for {_, {previous, _}, doc} <- current, do: {doc, empty(), previous}
     {Enum.reverse(acc, extra), %{state | comments: comments}}
   end
 
-  defp extract_comments_before(doc_line, _, acc, [{line, _, _} = comment | comments])
-       when doc_line > line do
+  defp extract_comments_before(doc_line, min_line, _, acc, [{line, _, _} = comment | comments])
+       when doc_line > line and line > min_line do
     {_, {previous, next}, doc_comment} = comment
-    extract_comments_before(doc_line, next, [{doc_comment, break(""), previous} | acc], comments)
+    acc = [{doc_comment, empty(), previous} | acc]
+    extract_comments_before(doc_line, min_line, next, acc, comments)
   end
 
-  defp extract_comments_before(_doc_line, doc_newlines, acc, comments) do
+  defp extract_comments_before(_doc_line, _min_line, doc_newlines, acc, comments) do
     {doc_newlines, acc, comments}
   end
 

@@ -675,6 +675,25 @@ bar)
       end
       """
     end
+
+    test "as funciton arguments" do
+      assert_same """
+      fun(
+        (
+          foo
+          bar
+        )
+      )
+      """
+
+      assert_same """
+      assert true,
+        do: (
+          foo
+          bar
+        )
+      """
+    end
   end
 
   describe "renames deprecated calls" do
