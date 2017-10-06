@@ -228,7 +228,7 @@ defmodule CodeFormatter do
         |> gather_comments()
         |> state(opts)
 
-      {doc, _} = block_to_algebra(forms, @maximum_line, state)
+      {doc, _} = block_to_algebra(forms, @minimum_line, @maximum_line, state)
       {:ok, doc}
     end
   after
@@ -268,8 +268,7 @@ defmodule CodeFormatter do
       locals_without_parens: locals_without_parens ++ @locals_without_parens,
       operand_nesting: 2,
       rename_deprecated_at: rename_deprecated_at,
-      comments: comments,
-      min_block_comment_line: 0
+      comments: comments
     }
   end
 
@@ -453,7 +452,7 @@ defmodule CodeFormatter do
   end
 
   defp quoted_to_algebra({:__block__, meta, _} = block, _context, state) do
-    {block, state} = block_to_algebra(block, end_line(meta), state)
+    {block, state} = block_to_algebra(block, line(meta), end_line(meta), state)
     {surround("(", block, ")"), state}
   end
 
@@ -536,65 +535,52 @@ defmodule CodeFormatter do
 
   ## Blocks
 
-  defp block_to_algebra([{:"->", _, _} | _] = type_fun, _end_line, state) do
+  defp block_to_algebra([{:"->", _, _} | _] = type_fun, _min_line, _end_line, state) do
     type_fun_to_algebra(type_fun, state)
   end
 
-  defp block_to_algebra({:__block__, _, []}, end_line, state) do
-    block_args_to_algebra([], end_line, state)
+  defp block_to_algebra({:__block__, _, []}, min_line, max_line, state) do
+    block_args_to_algebra([], min_line, max_line, state)
   end
 
-  defp block_to_algebra({:__block__, _, [_, _ | _] = args}, end_line, state) do
-    block_args_to_algebra(args, end_line, state)
+  defp block_to_algebra({:__block__, _, [_, _ | _] = args}, min_line, max_line, state) do
+    block_args_to_algebra(args, min_line, max_line, state)
   end
 
-  defp block_to_algebra(block, end_line, state) do
-    block_args_to_algebra([block], end_line, state)
+  defp block_to_algebra(block, min_line, max_line, state) do
+    block_args_to_algebra([block], min_line, max_line, state)
   end
 
-  defp block_args_to_algebra(args, end_line, state) do
-    {args_docs, new_state} = block_doc_with_comments(args, [], end_line, state)
+  defp block_args_to_algebra(args, min_line, max_line, state) do
+    {args_docs, state} = block_doc_with_comments(args, [], min_line, max_line, state)
 
-    doc =
-      args_docs
-      |> group_blocks(empty())
-      |> case do
-           [] -> empty()
-           lines  -> Enum.reduce(lines, &line(&2, &1))
-         end
-
-    if force_break_on_block?(args_docs, state, new_state) do
-      {force_break(doc), new_state}
-    else
-      {doc, new_state}
+    case group_blocks(args_docs, empty()) do
+      [] -> {empty(), state}
+      [line] -> {line, state}
+      lines -> {lines |> Enum.reduce(&line(&2, &1)) |> force_break(), state}
     end
   end
 
-  defp force_break_on_block?([_], %{comments: [x | _]}, %{comments: [x | _]}), do: false
-  defp force_break_on_block?([_], %{comments: []}, %{comments: []}), do: false
-  defp force_break_on_block?([], _, _), do: false
-  defp force_break_on_block?(_, _, _), do: true
-
-  defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, end_line, state)
+  defp block_doc_with_comments([{kind, meta, _} = arg | args], acc, min_line, max_line, state)
        when is_list(meta) do
-    %{comments: comments, min_block_comment_line: min_line} = state
-    doc_line = Keyword.get(meta, :line, @maximum_line)
+    %{comments: comments} = state
+    doc_line = line(meta)
 
     {doc_newlines, acc, comments} =
-      extract_comments_before(doc_line, min_line, @newlines, acc, comments)
+      extract_comments_before(min_line, doc_line, @newlines, acc, comments)
 
-    state = %{state | comments: comments, min_block_comment_line: doc_line}
-    {doc, state} = quoted_to_algebra(arg, :block, state)
-    {doc, comments} = extract_comments_trailing(doc_line, min_line, doc, state.comments)
-
-    state = %{state | comments: comments, min_block_comment_line: min_line}
     doc_newlines = Keyword.get(meta, :newlines, doc_newlines)
+    {doc, state} = quoted_to_algebra(arg, :block, %{state | comments: comments})
+
+    {doc_newlines, acc, comments} =
+      extract_comments_trailing(doc_line, min_line, doc_newlines, acc, state.comments)
+
     acc = [{doc, block_next_line(kind), doc_newlines} | acc]
-    block_doc_with_comments(args, acc, end_line, state)
+    block_doc_with_comments(args, acc, min_line, max_line, %{state | comments: comments})
   end
 
-  defp block_doc_with_comments([], acc, max_line, state) do
-    %{comments: comments, min_block_comment_line: min_line} = state
+  defp block_doc_with_comments([], acc, min_line, max_line, state) do
+    %{comments: comments} = state
 
     {current, comments} =
       Enum.split_with(comments, fn {line, _, _} -> line > min_line and line < max_line end)
@@ -603,24 +589,24 @@ defmodule CodeFormatter do
     {Enum.reverse(acc, extra), %{state | comments: comments}}
   end
 
-  defp extract_comments_before(doc_line, min_line, _, acc, [{line, _, _} = comment | comments])
-       when doc_line > line and line > min_line do
-    {_, {previous, next}, doc_comment} = comment
-    acc = [{doc_comment, empty(), previous} | acc]
-    extract_comments_before(doc_line, min_line, next, acc, comments)
+  defp extract_comments_before(min, max, _, acc, [{line, _, _} = comment | comments])
+       when line > min and line < max do
+    {_, {previous, next}, doc} = comment
+    acc = [{doc, empty(), previous} | acc]
+    extract_comments_before(min, max, next, acc, comments)
   end
 
-  defp extract_comments_before(_doc_line, _min_line, doc_newlines, acc, comments) do
-    {doc_newlines, acc, comments}
+  defp extract_comments_before(_min, _max, newlines, acc, comments) do
+    {newlines, acc, comments}
   end
 
-  defp extract_comments_trailing(line, min_line, doc, [{line, _, doc_comment} | comments])
-       when line > min_line do
-    {space(doc, doc_comment), comments}
+  defp extract_comments_trailing(line, min, newlines, acc, [{line, _, doc_comment} | comments])
+       when line > min do
+    {1, [{doc_comment, empty(), newlines} | acc], comments}
   end
 
-  defp extract_comments_trailing(_line, _min_line, doc, comments) do
-    {doc, comments}
+  defp extract_comments_trailing(_line, _min, newlines, acc, comments) do
+    {newlines, acc, comments}
   end
 
   defp block_next_line(:@), do: empty()
@@ -1178,7 +1164,7 @@ defmodule CodeFormatter do
 
   defp interpolation_to_algebra([entry | entries], escape, state, acc, last) do
     {:::, _, [{{:., _, [Kernel, :to_string]}, meta, [quoted]}, {:binary, _, _}]} = entry
-    {doc, state} = block_to_algebra(quoted, end_line(meta), state)
+    {doc, state} = block_to_algebra(quoted, line(meta), end_line(meta), state)
     doc = surround("\#{", doc, "}")
     interpolation_to_algebra(entries, escape, state, concat(acc, doc), last)
   end
@@ -1385,8 +1371,8 @@ defmodule CodeFormatter do
   ## Anonymous functions
 
   # fn -> block end
-  defp anon_fun_to_algebra([{:"->", _, [[], body]}], state) do
-    {body_doc, state} = block_to_algebra(body, @minimum_line, state)
+  defp anon_fun_to_algebra([{:"->", meta, [[], body]}], state) do
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
 
     doc =
       "fn ->"
@@ -1402,9 +1388,9 @@ defmodule CodeFormatter do
   # fn x ->
   #   y
   # end
-  defp anon_fun_to_algebra([{:"->", _, [args, body]}], state) do
+  defp anon_fun_to_algebra([{:"->", meta, [args, body]}], state) do
     {args_doc, state} = clause_args_to_algebra(args, state)
-    {body_doc, state} = block_to_algebra(body, @minimum_line, state)
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
 
     doc =
       "fn "
@@ -1433,8 +1419,8 @@ defmodule CodeFormatter do
   ## Type functions
 
   # (-> block)
-  defp type_fun_to_algebra([{:"->", _, [[], body]}], state) do
-    {body_doc, state} = block_to_algebra(body, @minimum_line, state)
+  defp type_fun_to_algebra([{:"->", meta, [[], body]}], state) do
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
 
     doc =
       "(-> "
@@ -1448,9 +1434,9 @@ defmodule CodeFormatter do
   # (x -> y)
   # (x ->
   #    y)
-  defp type_fun_to_algebra([{:"->", _, [args, body]}], state) do
+  defp type_fun_to_algebra([{:"->", meta, [args, body]}], state) do
     {args_doc, state} = clause_args_to_algebra(args, state)
-    {body_doc, state} = block_to_algebra(body, @minimum_line, state)
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
 
     clause_doc =
       " ->"
@@ -1505,18 +1491,22 @@ defmodule CodeFormatter do
   end
 
   defp clauses_to_algebra(other, state) do
-    {doc, state} = block_to_algebra(other, @minimum_line, state)
+    # TODO: min_line and max_line must come from elsewhere.
+    {doc, state} = block_to_algebra(other, @maximum_line, @minimum_line, state)
     {group(doc), state}
   end
 
-  defp clause_to_algebra({:"->", _, [[], body]}, state) do
-    {body_doc, state} = block_to_algebra(body, @minimum_line, state)
+  defp clause_to_algebra({:"->", meta, [[], body]}, state) do
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
     {"() ->" |> glue(body_doc) |> nest(2), state}
   end
 
-  defp clause_to_algebra({:"->", _, [args, body]}, %{operand_nesting: nesting} = state) do
-    {args_doc, state} = clause_args_to_algebra(args, %{state | operand_nesting: nesting + 2})
-    {body_doc, state} = block_to_algebra(body, @minimum_line, %{state | operand_nesting: nesting})
+  defp clause_to_algebra({:"->", meta, [args, body]}, %{operand_nesting: nesting} = state) do
+    state = %{state | operand_nesting: nesting + 2}
+    {args_doc, state} = clause_args_to_algebra(args, state)
+
+    state = %{state | operand_nesting: nesting}
+    {body_doc, state} = block_to_algebra(body, line(meta), @minimum_line, state)
     {concat(group(args_doc), " ->" |> glue(body_doc) |> nest(2)), state}
   end
 
@@ -1545,7 +1535,7 @@ defmodule CodeFormatter do
 
   # TODO: We can remove this workaround once we remove
   # ?rearrange_uop from the parser in Elixir v2.0.
-  defp wrap_in_parens_if_necessary({:__block__, [], [expr]}, doc) do
+  defp wrap_in_parens_if_necessary({:__block__, _, [expr]}, doc) do
     wrap_in_parens_if_necessary(expr, doc)
   end
 
@@ -1695,11 +1685,12 @@ defmodule CodeFormatter do
     end
   end
 
+  defp line(meta) do
+    Keyword.get(meta, :line, @maximum_line)
+  end
+
   defp end_line(meta) do
-    case Keyword.fetch(meta, :end_line) do
-      {:ok, end_line} when end_line > 0 -> end_line
-      _ -> 0
-    end
+    Keyword.get(meta, :end_line, @minimum_line)
   end
 
   ## Algebra helpers

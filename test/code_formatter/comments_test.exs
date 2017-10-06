@@ -31,25 +31,34 @@ defmodule CodeFormatter.CommentsTest do
     end
 
     test "on expressions" do
-      assert_same """
+      bad = """
       :hello # this is hello
       :world # this is world
       """
+
+      good = """
+      # this is hello
+      :hello
+      # this is world
+      :world
+      """
+
+      assert_format bad, good
     end
 
     test "empty comment" do
       assert_same """
       #
-      :foo #
+      :foo
       """
     end
 
-    test "before, on and after expressions with newlines" do
+    test "before and after expressions with newlines" do
       assert_same """
       # before comment
       # second line
 
-      :hello # this is hello
+      :hello
 
       # middle comment 1
 
@@ -57,7 +66,7 @@ defmodule CodeFormatter.CommentsTest do
 
       # middle comment 2
 
-      :world # this is world
+      :world
 
       # after comment
       # second line
@@ -73,12 +82,20 @@ defmodule CodeFormatter.CommentsTest do
       """
 
       assert_same ~S"""
+      IO.puts("Hello #{world}")
+      # comment
+      """
+    end
+
+    test "with trailing comments" do
+      # This is trailing so we move the comment out
+      trailing = ~S"""
       IO.puts("Hello #{world}") # comment
       """
 
-      assert_same ~S"""
-      IO.puts("Hello #{world}")
+      assert_format trailing, ~S"""
       # comment
+      IO.puts("Hello #{world}")
       """
 
       # This is ambiguous so we move the comment out
@@ -88,24 +105,17 @@ defmodule CodeFormatter.CommentsTest do
       """
 
       assert_format ambiguous, ~S"""
-      IO.puts("Hello #{world}") # comment
+      # comment
+      IO.puts("Hello #{world}")
       """
     end
 
-    test "with comment inside before, during and after" do
+    test "with comment inside before and after" do
       assert_same ~S"""
       IO.puts(
         "Hello #{
           # comment
           world
-        }"
-      )
-      """
-
-      assert_same ~S"""
-      IO.puts(
-        "Hello #{
-          world # comment
         }"
       )
       """
@@ -122,7 +132,7 @@ defmodule CodeFormatter.CommentsTest do
   end
 
   describe "parens blocks" do
-    test "with comment outside before, during and after" do
+    test "with comment outside before and after" do
       assert_same ~S"""
       # comment
       assert (
@@ -138,6 +148,24 @@ defmodule CodeFormatter.CommentsTest do
              )
 
       # comment
+      """
+    end
+
+    test "with trailing comments" do
+      # This is ambiguous so we move the comment out
+      ambiguous = ~S"""
+      assert ( # comment
+               hello
+               world
+             )
+      """
+
+      assert_format ambiguous, ~S"""
+      # comment
+      assert (
+               hello
+               world
+             )
       """
 
       # This is ambiguous so we move the comment out
@@ -158,7 +186,7 @@ defmodule CodeFormatter.CommentsTest do
       """
     end
 
-    test "with comment inside before, during and after" do
+    test "with comment inside before and after" do
       assert_same ~S"""
       assert (
                # comment
@@ -169,19 +197,11 @@ defmodule CodeFormatter.CommentsTest do
 
       assert_same ~S"""
       assert (
-               hello # comment1
-               world # comment2
+               hello
+               world
+               # comment
              )
       """
-
-      # TODO: Support end_line in parens
-      # assert_same ~S"""
-      # assert (
-      #          hello
-      #          world
-      #          # comment
-      #        )
-      # """
     end
   end
 end
