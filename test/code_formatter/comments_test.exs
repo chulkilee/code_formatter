@@ -3,6 +3,8 @@ defmodule CodeFormatter.CommentsTest do
 
   import CodeFormatter.Case
 
+  @short_length [line_length: 10]
+
   describe "at the root" do
     test "for empty documents" do
       assert_same "# hello world"
@@ -44,6 +46,40 @@ defmodule CodeFormatter.CommentsTest do
       """
 
       assert_format bad, good
+
+      bad = """
+      foo    # this is foo
+      |> bar # this is bar
+      |> baz # this is baz
+      """
+
+      good = """
+      # this is foo
+      # this is bar
+      # this is baz
+      foo
+      |> bar
+      |> baz
+      """
+
+      assert_format bad, good, @short_length
+
+      bad = """
+      foo   # this is foo
+      | bar # this is bar
+      | baz # this is baz
+      """
+
+      good = """
+      # this is foo
+      # this is bar
+      # this is baz
+      foo
+      | bar
+      | baz
+      """
+
+      assert_format bad, good, @short_length
     end
 
     test "empty comment" do
